@@ -164,10 +164,6 @@ function JsConsentDialog({ onAllow, onDeny }) {
 
 function ShareDialog({ url, error, onClose }) {
   const [copied, setCopied] = useState(false)
-  const inputRef = useRef(null)
-
-  useEffect(() => { if (url) inputRef.current?.select() }, [url])
-
   function handleCopy() {
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true)
@@ -192,7 +188,7 @@ function ShareDialog({ url, error, onClose }) {
           <>
             <p>Anyone with this link can view and edit this code.</p>
             <div className="share-url-row">
-              <input ref={inputRef} className="share-url-input" type="text" value={url} readOnly onClick={e => e.target.select()} />
+              <p className="share-url-text">{url}</p>
               <button className="dialog-btn allow share-copy-btn" onClick={handleCopy}>
                 {copied
                   ? <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 8l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>

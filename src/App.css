@@ -425,26 +425,24 @@
 
 .share-url-row {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
   width: 100%;
   margin-top: 4px;
 }
 
-.share-url-input {
-  flex: 1;
+.share-url-text {
   background: #111;
   border: 1px solid #333;
   border-radius: 7px;
   color: #ccc;
   font-size: 12px;
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-  padding: 7px 10px;
-  outline: none;
-  min-width: 0;
-}
-
-.share-url-input:focus {
-  border-color: #555;
+  padding: 8px 10px;
+  margin: 0;
+  text-align: left;
+  word-break: break-all;
+  line-height: 1.6;
 }
 
 .share-copy-btn {
