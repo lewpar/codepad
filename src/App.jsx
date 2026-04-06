@@ -4,8 +4,9 @@ import { html } from '@codemirror/lang-html'
 import { css } from '@codemirror/lang-css'
 import { javascript } from '@codemirror/lang-javascript'
 import { dracula } from '@uiw/codemirror-theme-dracula'
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import './App.css'
+
+const KVS_URL = 'https://kvs.cyberbilby.com'
 
 const LANGS = [
   { id: 'html', label: 'HTML' },
@@ -109,29 +110,6 @@ function buildConsoleInterceptor(nonce) {
   )
 }
 
-function encodeCode(code) {
-  return compressToEncodedURIComponent(JSON.stringify(code))
-}
-
-function decodeCode(fragment) {
-  try {
-    const parsed = JSON.parse(decompressFromEncodedURIComponent(fragment))
-    if (parsed && typeof parsed.html === 'string') return parsed
-  } catch {
-    // ignore malformed fragments
-  }
-  return null
-}
-
-function loadInitialCode() {
-  const hash = window.location.hash.slice(1)
-  if (hash) {
-    const decoded = decodeCode(hash)
-    if (decoded) return decoded
-  }
-  return DEFAULT_CODE
-}
-
 function stripScripts(htmlStr) {
   return htmlStr.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, '')
 }
@@ -184,11 +162,11 @@ function JsConsentDialog({ onAllow, onDeny }) {
   )
 }
 
-function ShareDialog({ url, onClose }) {
+function ShareDialog({ url, error, onClose }) {
   const [copied, setCopied] = useState(false)
   const inputRef = useRef(null)
 
-  useEffect(() => { inputRef.current?.select() }, [])
+  useEffect(() => { if (url) inputRef.current?.select() }, [url])
 
   function handleCopy() {
     navigator.clipboard.writeText(url).then(() => {
@@ -201,16 +179,29 @@ function ShareDialog({ url, onClose }) {
     <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="share-title">
         <h2 id="share-title">Share</h2>
-        <p>Anyone with this link can view and edit this code.</p>
-        <div className="share-url-row">
-          <input ref={inputRef} className="share-url-input" type="text" value={url} readOnly onClick={e => e.target.select()} />
-          <button className="dialog-btn allow share-copy-btn" onClick={handleCopy}>
-            {copied
-              ? <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 8l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              : <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="5" y="1" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M3 5H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
-            }
-          </button>
-        </div>
+        {error ? (
+          <>
+            <p style={{ color: '#f87171' }}>Failed to generate share link. Please try again.</p>
+            <div className="dialog-actions">
+              <button className="dialog-btn allow" onClick={onClose}>Close</button>
+            </div>
+          </>
+        ) : !url ? (
+          <p style={{ color: '#aaa' }}>Generating link…</p>
+        ) : (
+          <>
+            <p>Anyone with this link can view and edit this code.</p>
+            <div className="share-url-row">
+              <input ref={inputRef} className="share-url-input" type="text" value={url} readOnly onClick={e => e.target.select()} />
+              <button className="dialog-btn allow share-copy-btn" onClick={handleCopy}>
+                {copied
+                  ? <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 8l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  : <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="5" y="1" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M3 5H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                }
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -282,28 +273,28 @@ function ConsolePanel({ logs, isOpen, layout, onToggle, onClear }) {
 
 export default function App() {
   const [activeTab, setActiveTab]       = useState('html')
-  const [code, setCode]                 = useState(loadInitialCode)
-  const [srcdoc, setSrcdoc]             = useState(() => buildSrcdoc(loadInitialCode(), false))
+  const [code, setCode]                 = useState(DEFAULT_CODE)
+  const [srcdoc, setSrcdoc]             = useState(() => buildSrcdoc(DEFAULT_CODE, false))
   const [layout, setLayout]             = useState('row')
   const [jsAllowed, setJsAllowed]       = useState(null)
   const [showShare, setShowShare]       = useState(false)
+  const [shareUrl, setShareUrl]         = useState(null)
+  const [shareError, setShareError]     = useState(false)
+  const [isSharing, setIsSharing]       = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [splitSize, setSplitSize]       = useState(50)
   const [isDragging, setIsDragging]     = useState(false)
   const [consoleLogs, setConsoleLogs]   = useState([])
   const [consoleOpen, setConsoleOpen]   = useState(true)
 
-  const hashDebounceRef    = useRef(null)
   const previewDebounceRef = useRef(null)
   const previewDelayRef    = useRef(null)
   const workspaceRef       = useRef(null)
   const jsAllowedRef       = useRef(null)   // always holds latest jsAllowed
   const activeNonceRef     = useRef('')      // nonce of the currently live iframe
 
-  // keep jsAllowedRef in sync
+  // keep jsAllowed in sync
   useEffect(() => { jsAllowedRef.current = jsAllowed }, [jsAllowed])
-
-  // receive console messages — only accept if nonce matches current iframe
   useEffect(() => {
     const handler = (e) => {
       if (e.data?.source !== 'codepad') return
@@ -317,15 +308,6 @@ export default function App() {
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
   }, [])
-
-  // keep URL hash in sync with code
-  useEffect(() => {
-    clearTimeout(hashDebounceRef.current)
-    hashDebounceRef.current = setTimeout(() => {
-      history.replaceState(null, '', '#' + encodeCode(code))
-    }, 300)
-    return () => clearTimeout(hashDebounceRef.current)
-  }, [code])
 
   const updatePreview = useCallback((next, includeJs) => {
     clearTimeout(previewDebounceRef.current)
@@ -354,6 +336,21 @@ export default function App() {
     clearTimeout(previewDelayRef.current)
   }, [])
 
+  // load code from KV if a share code is present in the URL path
+  useEffect(() => {
+    const pathCode = window.location.pathname.slice(1)
+    if (!pathCode) return
+    fetch(`${KVS_URL}/${pathCode}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && typeof data.html === 'string') {
+          setCode(data)
+          updatePreview(data, null)
+        }
+      })
+      .catch(() => {})
+  }, [updatePreview])
+
   const handleDividerMouseDown = useCallback((e) => {
     e.preventDefault()
     setIsDragging(true)
@@ -375,7 +372,33 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [layout])
 
-  const shareUrl   = window.location.href
+  async function handleShare() {
+    setShareUrl(null)
+    setShareError(false)
+    setShowShare(true)
+    setIsSharing(true)
+    try {
+      const res = await fetch(KVS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: code.html, css: code.css, js: code.js }),
+      })
+      if (!res.ok) throw new Error('Request failed')
+      const data = await res.json()
+      setShareUrl(`${window.location.origin}/${data.id}`)
+    } catch {
+      setShareError(true)
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
+  function closeShare() {
+    setShowShare(false)
+    setShareUrl(null)
+    setShareError(false)
+  }
+
   const editorStyle = layout === 'row' ? { width: `${splitSize}%` } : { height: `${splitSize}%` }
 
   function grantConsent(allowed) {
@@ -389,7 +412,7 @@ export default function App() {
 
   return (
     <div className={`app${isDragging ? ' is-dragging-' + layout : ''}`}>
-      {showShare && <ShareDialog url={shareUrl} onClose={() => setShowShare(false)} />}
+      {showShare && <ShareDialog url={shareUrl} error={shareError} onClose={closeShare} />}
 
       <div className="topbar">
         <div className="topbar-tabs">
@@ -400,7 +423,7 @@ export default function App() {
           ))}
         </div>
 
-        <button className="layout-btn" onClick={() => setShowShare(true)} title="Share">
+        <button className="layout-btn" onClick={handleShare} disabled={isSharing} title="Share">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="13" cy="3"  r="1.75" stroke="currentColor" strokeWidth="1.4"/>
             <circle cx="3"  cy="8"  r="1.75" stroke="currentColor" strokeWidth="1.4"/>
