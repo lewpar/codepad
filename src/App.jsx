@@ -76,7 +76,7 @@ button {
 
 button:hover { background: #4f46e5; }`,
   js: `function greet() {
-  alert('Hello from JavaScript! 👋');
+  console.log('Hello from JavaScript! 👋');
 }`,
 }
 
