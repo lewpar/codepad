@@ -14,11 +14,21 @@ const LANGS = [
 ]
 
 const DEFAULT_CODE = {
-  html: `<div class="card">
-  <h1>Hello, World!</h1>
-  <p>Edit the panes on the left to see live changes.</p>
-  <button onclick="greet()">Click me</button>
-</div>`,
+  html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div class="card">
+    <h1>Hello, World!</h1>
+    <p>Edit the panes on the left to see live changes.</p>
+    <button onclick="greet()">Click me</button>
+  </div>
+</body>
+</html>`,
   css: `* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -127,19 +137,27 @@ function stripScripts(htmlStr) {
 }
 
 function buildSrcdoc(code, includeJs = true, nonce = '') {
-  const body = includeJs ? code.html : stripScripts(code.html)
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>${code.css}</style>
-</head>
-<body>
-${body}${includeJs
-  ? '\n' + buildConsoleInterceptor(nonce) + '\n<script>' + code.js + '<\/script>'
-  : ''}
-</body>
-</html>`
+  let doc = includeJs ? code.html : stripScripts(code.html)
+
+  // Inject CSS before </head> if present, otherwise prepend a <style> tag
+  const styleTag = `<style>${code.css}<\/style>`
+  if (doc.includes('</head>')) {
+    doc = doc.replace('</head>', `${styleTag}\n</head>`)
+  } else {
+    doc = styleTag + '\n' + doc
+  }
+
+  // Inject console interceptor + user JS before </body> if present
+  if (includeJs) {
+    const scripts = '\n' + buildConsoleInterceptor(nonce) + '\n<script>' + code.js + '<\/script>'
+    if (doc.includes('</body>')) {
+      doc = doc.replace('</body>', `${scripts}\n</body>`)
+    } else {
+      doc = doc + scripts
+    }
+  }
+
+  return doc
 }
 
 // ── sub-components ────────────────────────────────────────────────────────────
