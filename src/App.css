@@ -1,0 +1,513 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1a1a1a;
+}
+
+/* ── top bar ─────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  height: 42px;
+  background: #111;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+}
+
+.topbar-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.tab-btn {
+  padding: 5px 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #888;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab-btn:hover {
+  color: #ccc;
+  background: #222;
+}
+
+.tab-btn.active {
+  color: #fff;
+  background: #2a2a2a;
+}
+
+.layout-btn {
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.layout-btn:hover {
+  color: #ccc;
+  background: #222;
+}
+
+/* ── main split ──────────────────────────────────── */
+.workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.workspace.row    { flex-direction: row; }
+.workspace.column { flex-direction: column; }
+
+/* lock cursor during drag across entire app */
+.is-dragging-row    { cursor: col-resize !important; }
+.is-dragging-column { cursor: row-resize !important; }
+.is-dragging-row    iframe,
+.is-dragging-column iframe { pointer-events: none; }
+
+/* ── divider ─────────────────────────────────────── */
+.divider {
+  flex-shrink: 0;
+  background: #232323;
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+/* wider invisible hit area via pseudo-element */
+.divider--row {
+  width: 5px;
+  cursor: col-resize;
+}
+.divider--row::after {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+  cursor: col-resize;
+}
+
+.divider--column {
+  height: 5px;
+  cursor: row-resize;
+}
+.divider--column::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+  cursor: row-resize;
+}
+
+/* grip dots */
+.divider__grip {
+  display: flex;
+  gap: 3px;
+  pointer-events: none;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.divider--row   .divider__grip { flex-direction: column; }
+.divider--column .divider__grip { flex-direction: row; }
+
+.divider__grip span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff;
+  display: block;
+}
+
+.divider:hover,
+.divider:active {
+  background: #4f46e5;
+}
+.divider:hover .divider__grip,
+.divider:active .divider__grip {
+  opacity: 0.9;
+}
+
+/* ── editor panel ────────────────────────────────── */
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.workspace.row    .editor-panel { min-width: 80px; }
+.workspace.column .editor-panel { min-height: 60px; width: 100%; flex-direction: row; }
+
+/* the wrapper div @uiw/react-codemirror renders must also stretch */
+.editor-panel > div:first-child {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.editor-panel .cm-editor {
+  flex: 1;
+  overflow: hidden;
+  font-size: 13.5px;
+}
+
+.editor-panel .cm-editor.cm-focused {
+  outline: none;
+}
+
+.editor-panel .cm-scroller {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  line-height: 1.6;
+  overflow: auto !important;
+}
+
+/* ── console panel ───────────────────────────────── */
+.console-panel {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #111;
+  overflow: hidden;
+}
+
+/* row layout: console sits below the editor, fixed height */
+.console-panel--row {
+  border-top: 1px solid #2a2a2a;
+  height: 180px;
+}
+.console-panel--row.console-panel--collapsed {
+  height: 32px;
+}
+
+/* column layout: console sits to the right of the editor, fixed width */
+.console-panel--column {
+  border-left: 1px solid #2a2a2a;
+  width: 260px;
+}
+.console-panel--column.console-panel--collapsed {
+  width: 32px;
+}
+
+.console-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+  height: 32px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #222;
+  background: #161616;
+}
+
+.console-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.console-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 999px;
+  line-height: 1.6;
+}
+.console-badge--error { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.console-badge--warn  { background: rgba(245, 158, 11,  0.15); color: #f59e0b; }
+
+.console-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* column layout: collapsed → rotate header so title still reads vertically */
+.console-panel--column.console-panel--collapsed .console-header {
+  flex-direction: column-reverse;
+  height: 100%;
+  width: 32px;
+  padding: 8px 0;
+  border-bottom: none;
+  border-right: 1px solid #222;
+  gap: 10px;
+}
+
+.console-panel--column.console-panel--collapsed .console-title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  flex: 1;
+  text-align: center;
+}
+
+.console-panel--column.console-panel--collapsed .console-header-actions {
+  margin-left: 0;
+  margin-top: 0;
+}
+
+
+.console-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.console-icon-btn:hover {
+  color: #ccc;
+  background: #222;
+}
+
+.console-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.console-empty {
+  font-size: 12px;
+  color: #444;
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+.console-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 12px;
+  border-bottom: 1px solid transparent;
+  min-height: 24px;
+}
+.console-entry--warn  { background: rgba(245, 158, 11,  0.06); border-bottom-color: rgba(245, 158, 11,  0.1); }
+.console-entry--error { background: rgba(248, 113, 113, 0.06); border-bottom-color: rgba(248, 113, 113, 0.1); }
+
+.console-entry__tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+  width: 38px;
+  color: #444;
+}
+.console-entry--warn  .console-entry__tag { color: #f59e0b; }
+.console-entry--error .console-entry__tag { color: #f87171; }
+.console-entry--info  .console-entry__tag { color: #60a5fa; }
+
+.console-entry__text {
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
+/* ── dialog animations ───────────────────────────── */
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dialogIn {
+  from { opacity: 0; transform: scale(0.95) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+
+.dialog-backdrop--fixed {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.6);
+}
+.dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: backdropIn 0.15s ease;
+}
+
+.dialog {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 32px 28px 24px;
+  width: 320px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  animation: dialogIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialog-icon {
+  color: #f59e0b;
+  margin-bottom: 4px;
+}
+
+.dialog h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f0f0f0;
+  margin: 0;
+}
+
+.dialog p {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.dialog-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.dialog-btn:hover { opacity: 0.85; }
+
+.dialog-btn.deny {
+  background: #2a2a2a;
+  color: #aaa;
+}
+
+.dialog-btn.allow {
+  background: #6366f1;
+  color: #fff;
+}
+
+.share-url-row {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.share-url-input {
+  flex: 1;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 7px;
+  color: #ccc;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  padding: 7px 10px;
+  outline: none;
+  min-width: 0;
+}
+
+.share-url-input:focus {
+  border-color: #555;
+}
+
+.share-copy-btn {
+  flex: none;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-panel {
+  flex: 1;
+  overflow: hidden;
+  background: #fff;
+  position: relative;
+}
+
+.preview-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 10;
+  pointer-events: none;
+  animation: backdropIn 0.15s ease;
+}
+
+.preview-spinner__badge {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 999px;
+  padding: 9px 18px 9px 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.preview-spinner__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ccc;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #aaa;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.preview-panel iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
