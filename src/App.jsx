@@ -292,6 +292,7 @@ export default function App() {
   const workspaceRef       = useRef(null)
   const jsAllowedRef       = useRef(null)   // always holds latest jsAllowed
   const activeNonceRef     = useRef('')      // nonce of the currently live iframe
+  const lastSharedCodeRef  = useRef(null)   // code snapshot at last successful share
 
   // keep jsAllowed in sync
   useEffect(() => { jsAllowedRef.current = jsAllowed }, [jsAllowed])
@@ -373,6 +374,11 @@ export default function App() {
   }, [layout])
 
   async function handleShare() {
+    // reuse existing link if code hasn't changed since last share
+    if (shareUrl && lastSharedCodeRef.current === JSON.stringify(code)) {
+      setShowShare(true)
+      return
+    }
     setShareUrl(null)
     setShareError(false)
     setShowShare(true)
@@ -385,8 +391,11 @@ export default function App() {
       })
       if (!res.ok) throw new Error('Request failed')
       const data = await res.json()
+      lastSharedCodeRef.current = JSON.stringify(code)
       setShareUrl(`${window.location.origin}/${data.id}`)
     } catch {
+      setShareUrl(null)
+      lastSharedCodeRef.current = null
       setShareError(true)
     } finally {
       setIsSharing(false)
@@ -395,8 +404,8 @@ export default function App() {
 
   function closeShare() {
     setShowShare(false)
-    setShareUrl(null)
     setShareError(false)
+    // shareUrl is intentionally kept so the cached link can be reused
   }
 
   const editorStyle = layout === 'row' ? { width: `${splitSize}%` } : { height: `${splitSize}%` }
