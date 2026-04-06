@@ -9,9 +9,9 @@ import './App.css'
 const KVS_URL = 'https://kvs.cyberbilby.com'
 
 const LANGS = [
-  { id: 'html', label: 'HTML' },
-  { id: 'css',  label: 'CSS'  },
-  { id: 'js',   label: 'JS'   },
+  { id: 'html', label: 'HTML', color: '#f06535' },
+  { id: 'css',  label: 'CSS',  color: '#4a82f8' },
+  { id: 'js',   label: 'JS',   color: '#f5e24e' },
 ]
 
 const TAB_ICONS = {
@@ -473,8 +473,8 @@ export default function App() {
       <div className="topbar">
         <div className="topbar-tabs">
           <img src="/favicon.png" alt="CodePad" className="topbar-favicon" />
-          {LANGS.map(({ id, label }) => (
-            <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`} onClick={() => setActiveTab(id)}>
+          {LANGS.map(({ id, label, color }) => (
+            <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`} style={{ '--tab-color': color }} onClick={() => setActiveTab(id)}>
               {TAB_ICONS[id]}
               {label}
             </button>
