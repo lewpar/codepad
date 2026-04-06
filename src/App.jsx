@@ -14,6 +14,28 @@ const LANGS = [
   { id: 'js',   label: 'JS'   },
 ]
 
+const TAB_ICONS = {
+  html: (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M4 2L1 6.5l3 4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M9 2l3 4.5-3 4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7.8 1l-2.6 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  ),
+  css: (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M1.5 4.5h10M1.5 8.5h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M4.5 1.5l-1 10M9.5 1.5l-1 10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  ),
+  js: (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M5 1.5C4 1.5 3.5 2 3.5 3v1.5c0 .8-.5 1.3-1.5 1.5 1 .2 1.5.7 1.5 1.5V9c0 1 .5 1.5 1.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 1.5c1 0 1.5.5 1.5 1.5v1.5c0 .8.5 1.3 1.5 1.5-1 .2-1.5.7-1.5 1.5V9c0 1-.5 1.5-1.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+}
+
 const DEFAULT_CODE = {
   html: `<!DOCTYPE html>
 <html lang="en">
@@ -138,9 +160,32 @@ function buildSrcdoc(code, includeJs = true, nonce = '') {
   return doc
 }
 
+// ── cookie helpers ────────────────────────────────────────────────────────────
+
+function getJsConsentCookie() {
+  return document.cookie.split(';').some(c => c.trim() === 'js_consent=allowed')
+}
+
+function setJsConsentCookie() {
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString()
+  document.cookie = `js_consent=allowed; expires=${expires}; path=/`
+}
+
+// Computed once per page load so jsAllowed, srcdoc, and activeNonce are consistent.
+let _initConsent = null
+function getInitialConsent() {
+  if (!_initConsent) {
+    const cookied = getJsConsentCookie()
+    const nonce = cookied ? Math.random().toString(36).slice(2) : ''
+    _initConsent = { allowed: cookied ? true : null, nonce, srcdoc: buildSrcdoc(DEFAULT_CODE, cookied, nonce) }
+  }
+  return _initConsent
+}
+
 // ── sub-components ────────────────────────────────────────────────────────────
 
 function JsConsentDialog({ onAllow, onDeny }) {
+  const [remember, setRemember] = useState(false)
   return (
     <div className="dialog-backdrop">
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
@@ -153,9 +198,14 @@ function JsConsentDialog({ onAllow, onDeny }) {
         </div>
         <h2 id="dialog-title">Enable JavaScript?</h2>
         <p>The preview iframe can execute JavaScript written in the JS pane. Only run code you trust.</p>
+        <label className="consent-remember">
+          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+          <span className="consent-remember__box" />
+          Don't ask again for 24 hours
+        </label>
         <div className="dialog-actions">
           <button className="dialog-btn deny" onClick={onDeny}>Deny</button>
-          <button className="dialog-btn allow" onClick={onAllow}>Allow</button>
+          <button className="dialog-btn allow" onClick={() => onAllow(remember)}>Allow</button>
         </div>
       </div>
     </div>
@@ -270,9 +320,9 @@ function ConsolePanel({ logs, isOpen, layout, onToggle, onClear }) {
 export default function App() {
   const [activeTab, setActiveTab]       = useState('html')
   const [code, setCode]                 = useState(DEFAULT_CODE)
-  const [srcdoc, setSrcdoc]             = useState(() => buildSrcdoc(DEFAULT_CODE, false))
+  const [srcdoc, setSrcdoc]             = useState(() => getInitialConsent().srcdoc)
   const [layout, setLayout]             = useState('row')
-  const [jsAllowed, setJsAllowed]       = useState(null)
+  const [jsAllowed, setJsAllowed]       = useState(() => getInitialConsent().allowed)
   const [showShare, setShowShare]       = useState(false)
   const [shareUrl, setShareUrl]         = useState(null)
   const [shareError, setShareError]     = useState(false)
@@ -287,7 +337,7 @@ export default function App() {
   const previewDelayRef    = useRef(null)
   const workspaceRef       = useRef(null)
   const jsAllowedRef       = useRef(null)   // always holds latest jsAllowed
-  const activeNonceRef     = useRef('')      // nonce of the currently live iframe
+  const activeNonceRef     = useRef(getInitialConsent().nonce)  // nonce of the currently live iframe
   const lastSharedCodeRef  = useRef(null)   // code snapshot at last successful share
 
   // keep jsAllowed in sync
@@ -406,7 +456,8 @@ export default function App() {
 
   const editorStyle = layout === 'row' ? { width: `${splitSize}%` } : { height: `${splitSize}%` }
 
-  function grantConsent(allowed) {
+  function grantConsent(allowed, remember = false) {
+    if (allowed && remember) setJsConsentCookie()
     const nonce = Math.random().toString(36).slice(2)
     activeNonceRef.current = nonce
     setJsAllowed(allowed)
@@ -421,8 +472,10 @@ export default function App() {
 
       <div className="topbar">
         <div className="topbar-tabs">
+          <img src="/favicon.png" alt="CodePad" className="topbar-favicon" />
           {LANGS.map(({ id, label }) => (
             <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`} onClick={() => setActiveTab(id)}>
+              {TAB_ICONS[id]}
               {label}
             </button>
           ))}
@@ -473,7 +526,7 @@ export default function App() {
 
         <div className="preview-panel">
           {jsAllowed === null && (
-            <JsConsentDialog onAllow={() => grantConsent(true)} onDeny={() => grantConsent(false)} />
+            <JsConsentDialog onAllow={(remember) => grantConsent(true, remember)} onDeny={() => grantConsent(false)} />
           )}
           {previewLoading && (
             <div className="preview-spinner">

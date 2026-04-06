@@ -19,11 +19,23 @@
 
 .topbar-tabs {
   display: flex;
+  align-items: center;
   gap: 4px;
   flex: 1;
 }
 
+.topbar-favicon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
 .tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   padding: 5px 16px;
   border: none;
   border-radius: 6px;
@@ -390,6 +402,62 @@
   color: #888;
   line-height: 1.6;
   margin: 0;
+}
+
+.consent-remember {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #777;
+  cursor: pointer;
+  user-select: none;
+}
+
+.consent-remember input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.consent-remember__box {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  border: 1.5px solid #444;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
+}
+
+.consent-remember:hover .consent-remember__box {
+  border-color: #666;
+}
+
+.consent-remember input:checked + .consent-remember__box {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+
+.consent-remember__box::after {
+  content: '';
+  display: none;
+  width: 4px;
+  height: 7px;
+  border: 1.5px solid #fff;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.consent-remember input:checked + .consent-remember__box::after {
+  display: block;
 }
 
 .dialog-actions {
