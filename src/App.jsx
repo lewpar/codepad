@@ -139,9 +139,11 @@ function stripScripts(htmlStr) {
 function buildSrcdoc(code, includeJs = true, nonce = '') {
   let doc = includeJs ? code.html : stripScripts(code.html)
 
-  // Inject CSS before </head> if present, otherwise prepend a <style> tag
+  // Inject CSS at the start of <head> so user styles declared later take precedence
   const styleTag = `<style>${code.css}<\/style>`
-  if (doc.includes('</head>')) {
+  if (doc.includes('<head>')) {
+    doc = doc.replace('<head>', `<head>\n${styleTag}`)
+  } else if (doc.includes('</head>')) {
     doc = doc.replace('</head>', `${styleTag}\n</head>`)
   } else {
     doc = styleTag + '\n' + doc
