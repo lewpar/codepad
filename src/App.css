@@ -534,6 +534,35 @@
   align-items: center;
   justify-content: center;
 }
+.preview-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #1a1a1a;
+  color: #555;
+  padding: 32px;
+  text-align: center;
+}
+
+.preview-placeholder__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  margin: 0;
+}
+
+.preview-placeholder__sub {
+  font-size: 12px;
+  color: #3a3a3a;
+  line-height: 1.6;
+  max-width: 260px;
+  margin: 0;
+}
+
 .preview-panel {
   flex: 1;
   overflow: hidden;

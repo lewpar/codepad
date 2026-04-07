@@ -37,70 +37,9 @@ const TAB_ICONS = {
 }
 
 const DEFAULT_CODE = {
-  html: `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-</head>
-<body>
-  <div class="card">
-    <h1>Hello, World!</h1>
-    <p>Edit the panes on the left to see live changes.</p>
-    <button onclick="greet()">Click me</button>
-  </div>
-</body>
-</html>`,
-  css: `* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: system-ui, sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: #f0f2f5;
-}
-
-.card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 40px 48px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  text-align: center;
-  max-width: 480px;
-  width: 100%;
-}
-
-h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 12px;
-  color: #111;
-}
-
-p {
-  color: #555;
-  line-height: 1.6;
-  margin-bottom: 24px;
-}
-
-button {
-  background: #6366f1;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 24px;
-  font-size: 15px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-button:hover { background: #4f46e5; }`,
-  js: `function greet() {
-  console.log('Hello from JavaScript! 👋');
-}`,
+  html: '',
+  css:  '',
+  js:   '',
 }
 
 const CM_EXTENSIONS = {
@@ -182,6 +121,21 @@ function getInitialConsent() {
     _initConsent = { allowed: cookied ? true : null, nonce, srcdoc: buildSrcdoc(DEFAULT_CODE, cookied, nonce) }
   }
   return _initConsent
+}
+
+function PreviewPlaceholder() {
+  return (
+    <div className="preview-placeholder">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="33" height="33" rx="6" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/>
+        <path d="M11 18l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M25 18l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M20 15l-4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+      <p className="preview-placeholder__title">Nothing to preview yet</p>
+      <p className="preview-placeholder__sub">Write some HTML, CSS, or JavaScript in the editor to see a live preview here.</p>
+    </div>
+  )
 }
 
 // ── sub-components ────────────────────────────────────────────────────────────
@@ -457,6 +411,7 @@ export default function App() {
   }
 
   const editorStyle = layout === 'row' ? { width: `${splitSize}%` } : { height: `${splitSize}%` }
+  const isEmpty = !code.html.trim() && !code.css.trim() && !code.js.trim()
 
   function grantConsent(allowed, remember = false) {
     if (allowed && remember) setJsConsentCookie()
@@ -527,7 +482,8 @@ export default function App() {
         </div>
 
         <div className="preview-panel">
-          {jsAllowed === null && (
+          {isEmpty && <PreviewPlaceholder />}
+          {jsAllowed === null && !isEmpty && (
             <JsConsentDialog onAllow={(remember) => grantConsent(true, remember)} onDeny={() => grantConsent(false)} />
           )}
           {previewLoading && (
