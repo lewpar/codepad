@@ -297,6 +297,8 @@ function ConsolePanel({ logs, isOpen, layout, onToggle, onClear }) {
 export default function App() {
   const [activeTab, setActiveTab]       = useState('html')
   const [code, setCode]                 = useState(DEFAULT_CODE)
+  const [title, setTitle]               = useState('Untitled')
+  useEffect(() => { document.title = `CodePad - ${title}` }, [title])
   const [srcdoc, setSrcdoc]             = useState(() => getInitialConsent().srcdoc)
   const [layout, setLayout]             = useState('row')
   const [jsAllowed, setJsAllowed]       = useState(() => getInitialConsent().allowed)
@@ -384,6 +386,7 @@ export default function App() {
       .then(data => {
         if (data && typeof data.html === 'string') {
           setCode(data)
+          if (data.title) setTitle(data.title)
           updatePreview(data, null)
         }
       })
@@ -413,7 +416,7 @@ export default function App() {
 
   async function handleShare() {
     // reuse existing link if code hasn't changed since last share
-    if (shareUrl && lastSharedCodeRef.current === JSON.stringify(code)) {
+    if (shareUrl && lastSharedCodeRef.current === JSON.stringify({ ...code, title })) {
       setShowShare(true)
       return
     }
@@ -425,11 +428,11 @@ export default function App() {
       const res = await fetch(KVS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ html: code.html, css: code.css, js: code.js }),
+        body: JSON.stringify({ title, html: code.html, css: code.css, js: code.js }),
       })
       if (!res.ok) throw new Error('Request failed')
       const data = await res.json()
-      lastSharedCodeRef.current = JSON.stringify(code)
+      lastSharedCodeRef.current = JSON.stringify({ ...code, title })
       setShareUrl(`${window.location.origin}/${data.id}`)
     } catch {
       setShareUrl(null)
@@ -475,9 +478,42 @@ export default function App() {
       {showClear && <ClearDialog tab={activeTab} onConfirm={handleClearConfirm} onClose={() => setShowClear(false)} />}
       {showShare && <ShareDialog url={shareUrl} error={shareError} onClose={closeShare} />}
 
-      <div className="topbar">
-        <div className="topbar-tabs">
-          <img src="/favicon.png" alt="CodePad" className="topbar-favicon" />
+      <div className="header">
+        <img src="/favicon.png" alt="CodePad" className="header-logo" />
+        <div className="header-title-wrap">
+          <div className="header-title-sizer" data-value={title}>
+            <input
+              className="header-title"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+              spellCheck={false}
+              aria-label="Project title"
+            />
+          </div>
+        </div>
+        <div className="header-actions">
+          <button className="layout-btn" onClick={handleShare} disabled={isSharing} title="Share">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="13" cy="3"  r="1.75" stroke="currentColor" strokeWidth="1.4"/>
+              <circle cx="3"  cy="8"  r="1.75" stroke="currentColor" strokeWidth="1.4"/>
+              <circle cx="13" cy="13" r="1.75" stroke="currentColor" strokeWidth="1.4"/>
+              <line x1="4.7" y1="7.1" x2="11.3" y2="4"  stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              <line x1="4.7" y1="8.9" x2="11.3" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <button className="layout-btn" onClick={() => setLayout(l => l === 'row' ? 'column' : 'row')}
+            title={layout === 'row' ? 'Switch to vertical split' : 'Switch to horizontal split'}>
+            {layout === 'row'
+              ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="6" rx="1.5" fill="currentColor" opacity="0.5"/><rect x="1" y="9" width="14" height="6" rx="1.5" fill="currentColor"/></svg>
+              : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="14" rx="1.5" fill="currentColor" opacity="0.5"/><rect x="9" y="1" width="6" height="14" rx="1.5" fill="currentColor"/></svg>
+            }
+          </button>
+        </div>
+      </div>
+
+      <div className="topbar" style={layout === 'row' ? { padding: 0, gap: 0 } : {}}>
+        <div className="topbar-tabs" style={layout === 'row' ? { width: `${splitSize}%`, flexShrink: 0, padding: '0 12px' } : {}}>
           {LANGS.map(({ id, label, color }) => (
             <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`} style={{ '--tab-color': color }} onClick={() => setActiveTab(id)}>
               {TAB_ICONS[id]}
@@ -485,24 +521,9 @@ export default function App() {
             </button>
           ))}
         </div>
-
-        <button className="layout-btn" onClick={handleShare} disabled={isSharing} title="Share">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="13" cy="3"  r="1.75" stroke="currentColor" strokeWidth="1.4"/>
-            <circle cx="3"  cy="8"  r="1.75" stroke="currentColor" strokeWidth="1.4"/>
-            <circle cx="13" cy="13" r="1.75" stroke="currentColor" strokeWidth="1.4"/>
-            <line x1="4.7" y1="7.1" x2="11.3" y2="4"  stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            <line x1="4.7" y1="8.9" x2="11.3" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
-        </button>
-
-        <button className="layout-btn" onClick={() => setLayout(l => l === 'row' ? 'column' : 'row')}
-          title={layout === 'row' ? 'Switch to vertical split' : 'Switch to horizontal split'}>
-          {layout === 'row'
-            ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="6" rx="1.5" fill="currentColor" opacity="0.5"/><rect x="1" y="9" width="14" height="6" rx="1.5" fill="currentColor"/></svg>
-            : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="14" rx="1.5" fill="currentColor" opacity="0.5"/><rect x="9" y="1" width="6" height="14" rx="1.5" fill="currentColor"/></svg>
-          }
-        </button>
+        {layout === 'row' && (
+          <div className="topbar-preview-label">Live Preview</div>
+        )}
       </div>
 
       <div className={`workspace ${layout}`} ref={workspaceRef}>
@@ -536,6 +557,8 @@ export default function App() {
           <div className="divider__grip"><span /><span /><span /><span /></div>
         </div>
 
+        <div className="preview-wrapper">
+          {layout === 'column' && <div className="preview-header">Live Preview</div>}
         <div className="preview-panel">
           {isEmpty && <PreviewPlaceholder />}
           {jsAllowed === null && !isEmpty && (
@@ -558,6 +581,7 @@ export default function App() {
               onLoad={() => setPreviewLoading(false)}
             />
           )}
+        </div>
         </div>
       </div>
     </div>
