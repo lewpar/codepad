@@ -169,14 +169,20 @@ function JsConsentDialog({ onAllow, onDeny }) {
 }
 
 function ClearDialog({ tab, onConfirm, onClose }) {
+  const [clearAll, setClearAll] = useState(true)
   return (
     <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="clear-title">
-        <h2 id="clear-title">Clear {tab.toUpperCase()}?</h2>
-        <p>This will erase all content in the <strong>{tab.toUpperCase()}</strong> tab. This cannot be undone.</p>
+      <div className="dialog dialog--left" role="dialog" aria-modal="true" aria-labelledby="clear-title">
+        <h2 id="clear-title">Clear {clearAll ? 'All Tabs' : tab.toUpperCase()}?</h2>
+        <p>This will erase all content in {clearAll ? 'all tabs' : <>the <strong>{tab.toUpperCase()}</strong> tab</>}. This cannot be undone.</p>
+        <label className="consent-remember">
+          <input type="checkbox" checked={clearAll} onChange={e => setClearAll(e.target.checked)} />
+          <span className="consent-remember__box" />
+          Clear all tabs
+        </label>
         <div className="dialog-actions">
           <button className="dialog-btn deny" onClick={onClose}>Cancel</button>
-          <button className="dialog-btn clear" onClick={onConfirm}>Clear</button>
+          <button className="dialog-btn clear" onClick={() => onConfirm(clearAll)}>Clear</button>
         </div>
       </div>
     </div>
@@ -420,9 +426,11 @@ export default function App() {
     }
   }
 
-  function handleClearConfirm() {
+  function handleClearConfirm(clearAll) {
     setCode(prev => {
-      const next = { ...prev, [activeTab]: '' }
+      const next = clearAll
+        ? { html: '', css: '', js: '' }
+        : { ...prev, [activeTab]: '' }
       updatePreview(next, null)
       return next
     })
