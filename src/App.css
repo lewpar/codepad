@@ -40,7 +40,7 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: color-mix(in srgb, var(--tab-color, #888) 40%, #444);
+  color: #666;
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
@@ -48,14 +48,28 @@
   transition: color 0.15s, background 0.15s;
 }
 
+.tab-btn svg {
+  color: color-mix(in srgb, var(--tab-color, #666) 50%, #444);
+  transition: color 0.15s;
+}
+
 .tab-btn:hover {
-  color: color-mix(in srgb, var(--tab-color, #ccc) 75%, #aaa);
-  background: #222;
+  color: #bbb;
+  background: #1e1e1e;
+}
+
+.tab-btn:hover svg {
+  color: color-mix(in srgb, var(--tab-color, #bbb) 85%, #aaa);
 }
 
 .tab-btn.active {
-  color: var(--tab-color, #fff);
+  color: #fff;
   background: #2a2a2a;
+
+}
+
+.tab-btn.active svg {
+  color: var(--tab-color, #fff);
 }
 
 .layout-btn {

@@ -331,7 +331,7 @@ export default function App() {
   const [splitSize, setSplitSize]       = useState(50)
   const [isDragging, setIsDragging]     = useState(false)
   const [consoleLogs, setConsoleLogs]   = useState([])
-  const [consoleOpen, setConsoleOpen]   = useState(true)
+  const [consoleOpen, setConsoleOpen]   = useState(false)
 
   const previewDebounceRef = useRef(null)
   const previewDelayRef    = useRef(null)
