@@ -81,14 +81,14 @@ function parseFragment() {
     if (!hash) return null
     const data = JSON.parse(atob(hash))
     if (typeof data.html === 'string' || typeof data.css === 'string' || typeof data.js === 'string') {
-      return { html: data.html ?? '', css: data.css ?? '', js: data.js ?? '' }
+      return { html: data.html ?? '', css: data.css ?? '', js: data.js ?? '', title: data.title ?? null }
     }
   } catch {}
   return null
 }
 
-function buildFragmentUrl(code) {
-  return `${window.location.origin}/#${btoa(JSON.stringify({ html: code.html, css: code.css, js: code.js }))}`
+function buildFragmentUrl(code, title) {
+  return `${window.location.origin}/#${btoa(JSON.stringify({ title, html: code.html, css: code.css, js: code.js }))}`
 }
 
 function buildSrcdoc(code, includeJs = true, nonce = '') {
@@ -212,10 +212,10 @@ const CheckIcon = () => (
   <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 8l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
 )
 
-function ShareDialog({ code, shortUrl, shortError, isGenerating, onGenerateShortLink, onClose }) {
+function ShareDialog({ code, title, shortUrl, shortError, isGenerating, onGenerateShortLink, onClose }) {
   const [copiedFragment, setCopiedFragment] = useState(false)
   const [copiedShort, setCopiedShort]       = useState(false)
-  const fragmentUrl = buildFragmentUrl(code)
+  const fragmentUrl = buildFragmentUrl(code, title)
 
   function copyText(text, setCopied) {
     navigator.clipboard.writeText(text).then(() => {
@@ -428,8 +428,10 @@ export default function App() {
     }
     const fragData = parseFragment()
     if (fragData) {
-      setCode(fragData)
-      updatePreview(fragData, null)
+      const { title: fragTitle, ...fragCode } = fragData
+      setCode(fragCode)
+      if (fragTitle) setTitle(fragTitle)
+      updatePreview(fragCode, null)
     }
   }, [updatePreview])
 
@@ -517,7 +519,7 @@ export default function App() {
   return (
     <div className={`app${isDragging ? ' is-dragging-' + layout : ''}`}>
       {showClear && <ClearDialog tab={activeTab} onConfirm={handleClearConfirm} onClose={() => setShowClear(false)} />}
-      {showShare && <ShareDialog code={code} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} />}
+      {showShare && <ShareDialog code={code} title={title} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} />}
 
       <div className="header">
         <img src="/favicon.png" alt="CodePad" className="header-logo" />
