@@ -462,6 +462,7 @@ export default function App() {
 
   const editorStyle = layout === 'row' ? { width: `${splitSize}%` } : { height: `${splitSize}%` }
   const isEmpty = !code.html.trim() && !code.css.trim() && !code.js.trim()
+  const hasJs   = !!code.js.trim() || /<script\b/i.test(code.html)
 
   function grantConsent(allowed, remember = false) {
     if (allowed && remember) setJsConsentCookie()
@@ -561,7 +562,7 @@ export default function App() {
           {layout === 'column' && <div className="preview-header">Live Preview</div>}
         <div className="preview-panel">
           {isEmpty && <PreviewPlaceholder />}
-          {jsAllowed === null && !isEmpty && (
+          {jsAllowed === null && hasJs && (
             <JsConsentDialog onAllow={(remember) => grantConsent(true, remember)} onDeny={() => grantConsent(false)} />
           )}
           {previewLoading && (
