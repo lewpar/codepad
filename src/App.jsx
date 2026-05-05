@@ -75,6 +75,22 @@ function stripScripts(htmlStr) {
   return htmlStr.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, '')
 }
 
+function parseFragment() {
+  try {
+    const hash = window.location.hash.slice(1)
+    if (!hash) return null
+    const data = JSON.parse(atob(hash))
+    if (typeof data.html === 'string' || typeof data.css === 'string' || typeof data.js === 'string') {
+      return { html: data.html ?? '', css: data.css ?? '', js: data.js ?? '' }
+    }
+  } catch {}
+  return null
+}
+
+function buildFragmentUrl(code) {
+  return `${window.location.origin}/#${btoa(JSON.stringify({ html: code.html, css: code.css, js: code.js }))}`
+}
+
 function buildSrcdoc(code, includeJs = true, nonce = '') {
   let doc = includeJs ? code.html : stripScripts(code.html)
 
@@ -189,10 +205,20 @@ function ClearDialog({ tab, onConfirm, onClose }) {
   )
 }
 
-function ShareDialog({ url, error, onClose }) {
-  const [copied, setCopied] = useState(false)
-  function handleCopy() {
-    navigator.clipboard.writeText(url).then(() => {
+const CopyIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="5" y="1" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M3 5H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+)
+const CheckIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 8l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+)
+
+function ShareDialog({ code, shortUrl, shortError, isGenerating, onGenerateShortLink, onClose }) {
+  const [copiedFragment, setCopiedFragment] = useState(false)
+  const [copiedShort, setCopiedShort]       = useState(false)
+  const fragmentUrl = buildFragmentUrl(code)
+
+  function copyText(text, setCopied) {
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -202,29 +228,36 @@ function ShareDialog({ url, error, onClose }) {
     <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="share-title">
         <h2 id="share-title">Share</h2>
-        {error ? (
-          <>
-            <p style={{ color: '#f87171' }}>Failed to generate share link. Please try again.</p>
-            <div className="dialog-actions">
-              <button className="dialog-btn allow" onClick={onClose}>Close</button>
-            </div>
-          </>
-        ) : !url ? (
-          <p style={{ color: '#aaa' }}>Generating link…</p>
+
+        <p className="share-section-label">Fragment link <span className="share-section-note">(instant, no server)</span></p>
+        <div className="share-url-row">
+          <p className="share-url-text">{fragmentUrl}</p>
+          <button className="dialog-btn allow share-copy-btn" onClick={() => copyText(fragmentUrl, setCopiedFragment)}>
+            {copiedFragment ? <CheckIcon /> : <CopyIcon />}
+          </button>
+        </div>
+
+        <div className="share-divider" />
+
+        <p className="share-section-label">Short link <span className="share-section-note">(stored on server)</span></p>
+        {shortError ? (
+          <p style={{ color: '#f87171', margin: '4px 0 0' }}>Failed to generate short link. Please try again.</p>
+        ) : shortUrl ? (
+          <div className="share-url-row">
+            <p className="share-url-text">{shortUrl}</p>
+            <button className="dialog-btn allow share-copy-btn" onClick={() => copyText(shortUrl, setCopiedShort)}>
+              {copiedShort ? <CheckIcon /> : <CopyIcon />}
+            </button>
+          </div>
         ) : (
-          <>
-            <p>Anyone with this link can view and edit this code.</p>
-            <div className="share-url-row">
-              <p className="share-url-text">{url}</p>
-              <button className="dialog-btn allow share-copy-btn" onClick={handleCopy}>
-                {copied
-                  ? <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 8l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  : <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="5" y="1" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/><path d="M3 5H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
-                }
-              </button>
-            </div>
-          </>
+          <button className="dialog-btn allow" style={{ marginTop: '4px' }} onClick={onGenerateShortLink} disabled={isGenerating}>
+            {isGenerating ? 'Generating…' : 'Generate Short Link'}
+          </button>
         )}
+
+        <div className="dialog-actions" style={{ marginTop: '12px' }}>
+          <button className="dialog-btn deny" onClick={onClose}>Close</button>
+        </div>
       </div>
     </div>
   )
@@ -377,20 +410,27 @@ export default function App() {
     return () => clearTimeout(id)
   }, [code[activeTab]])
 
-  // load code from KV if a share code is present in the URL path
+  // load code from KV path (takes priority) or fall back to fragment
   useEffect(() => {
     const pathCode = window.location.pathname.slice(1)
-    if (!pathCode) return
-    fetch(`${KVS_URL}/${pathCode}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data && typeof data.html === 'string') {
-          setCode(data)
-          if (data.title) setTitle(data.title)
-          updatePreview(data, null)
-        }
-      })
-      .catch(() => {})
+    if (pathCode) {
+      fetch(`${KVS_URL}/${pathCode}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && typeof data.html === 'string') {
+            setCode(data)
+            if (data.title) setTitle(data.title)
+            updatePreview(data, null)
+          }
+        })
+        .catch(() => {})
+      return // ignore fragment when a share path is present
+    }
+    const fragData = parseFragment()
+    if (fragData) {
+      setCode(fragData)
+      updatePreview(fragData, null)
+    }
   }, [updatePreview])
 
   const handleDividerMouseDown = useCallback((e) => {
@@ -414,15 +454,15 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [layout])
 
-  async function handleShare() {
+  function handleShare() {
+    setShowShare(true)
+  }
+
+  async function handleGenerateShortLink() {
     // reuse existing link if code hasn't changed since last share
-    if (shareUrl && lastSharedCodeRef.current === JSON.stringify({ ...code, title })) {
-      setShowShare(true)
-      return
-    }
+    if (shareUrl && lastSharedCodeRef.current === JSON.stringify({ ...code, title })) return
     setShareUrl(null)
     setShareError(false)
-    setShowShare(true)
     setIsSharing(true)
     try {
       const res = await fetch(KVS_URL, {
@@ -477,7 +517,7 @@ export default function App() {
   return (
     <div className={`app${isDragging ? ' is-dragging-' + layout : ''}`}>
       {showClear && <ClearDialog tab={activeTab} onConfirm={handleClearConfirm} onClose={() => setShowClear(false)} />}
-      {showShare && <ShareDialog url={shareUrl} error={shareError} onClose={closeShare} />}
+      {showShare && <ShareDialog code={code} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} />}
 
       <div className="header">
         <img src="/favicon.png" alt="CodePad" className="header-logo" />
