@@ -94,14 +94,34 @@ function buildFragmentUrl(code, title) {
 function buildSrcdoc(code, includeJs = true, nonce = '') {
   let doc = includeJs ? code.html : stripScripts(code.html)
 
+  // Navigation guard: intercept anchor clicks to handle hash scrolling and
+  // open external links in a new tab instead of navigating the iframe.
+  const navGuard =
+    '<scr' + 'ipt>' +
+    '(function(){' +
+    'document.addEventListener("click",function(e){' +
+    'var a=e.target.closest("a");' +
+    'if(!a||!a.hasAttribute("href"))return;' +
+    'e.preventDefault();' +
+    'var h=a.getAttribute("href");' +
+    'if(!h||h==="#"){return;}' +
+    'if(h.startsWith("#")){' +
+    'var el=document.getElementById(h.slice(1));' +
+    'if(el)el.scrollIntoView({behavior:"smooth"});' +
+    'return;}' +
+    'window.open(h,"_blank","noopener,noreferrer");' +
+    '});' +
+    '})();' +
+    '<\/scr' + 'ipt>'
+
   // Inject CSS at the start of <head> so user styles declared later take precedence
   const styleTag = `<style>${code.css}<\/style>`
   if (doc.includes('<head>')) {
-    doc = doc.replace('<head>', `<head>\n${styleTag}`)
+    doc = doc.replace('<head>', `<head>\n${styleTag}\n${navGuard}`)
   } else if (doc.includes('</head>')) {
-    doc = doc.replace('</head>', `${styleTag}\n</head>`)
+    doc = doc.replace('</head>', `${styleTag}\n${navGuard}\n</head>`)
   } else {
-    doc = styleTag + '\n' + doc
+    doc = styleTag + '\n' + navGuard + '\n' + doc
   }
 
   // Inject console interceptor + user JS before </body> if present
@@ -619,7 +639,7 @@ export default function App() {
             <iframe
               key={String(jsAllowed)}
               title="preview"
-              sandbox={jsAllowed ? 'allow-scripts allow-modals' : ''}
+              sandbox={jsAllowed ? 'allow-scripts allow-modals allow-popups' : 'allow-scripts allow-popups'}
               srcDoc={srcdoc}
               onLoad={() => setPreviewLoading(false)}
             />
