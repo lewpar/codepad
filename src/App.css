@@ -653,6 +653,8 @@
   text-align: left;
   word-break: break-all;
   line-height: 1.6;
+  max-height: 100px;
+  overflow: auto;
 }
 
 .share-copy-btn {
