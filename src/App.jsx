@@ -107,7 +107,8 @@ function buildSrcdoc(code, includeJs = true, nonce = '') {
     'if(!h||h==="#"){return;}' +
     'if(h.startsWith("#")){' +
     'var el=document.getElementById(h.slice(1));' +
-    'if(el)el.scrollIntoView({behavior:"smooth"});' +
+    'if(el){var top=el.getBoundingClientRect().top+window.pageYOffset;' +
+    'window.scrollTo({top:top,behavior:"smooth"});}' +
     'return;}' +
     'window.open(h,"_blank","noopener,noreferrer");' +
     '});' +
