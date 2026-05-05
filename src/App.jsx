@@ -573,7 +573,7 @@ export default function App() {
               </div>
             </div>
           )}
-          {jsAllowed !== null && (
+          {(jsAllowed !== null || !hasJs) && (
             <iframe
               key={String(jsAllowed)}
               title="preview"
