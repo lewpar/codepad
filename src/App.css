@@ -139,6 +139,54 @@
   transition: color 0.15s, background 0.15s;
 }
 
+.tab-btn-group {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tab-btn-group .tab-btn {
+  border-radius: 0;
+}
+
+.tab-btn-group .tab-btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.tab-add-page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab-add-page-btn svg {
+  color: inherit;
+}
+
+.tab-btn.active:has(.tab-add-page-btn) {
+  padding-right: 4px;
+}
+
+.tab-btn:not(.active) .tab-add-page-btn {
+  display: none;
+}
+
+.tab-add-page-btn:hover {
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.1);
+}
+
 .tab-btn svg {
   color: color-mix(in srgb, var(--tab-color, #666) 50%, #444);
   transition: color 0.15s;
@@ -793,4 +841,173 @@
   height: 100%;
   border: none;
   display: block;
+}
+
+/* ── HTML page sub-bar ───────────────────────────── */
+.html-pagebar {
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #1e1e1e;
+  flex-shrink: 0;
+}
+
+.html-pagebar-inner {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+}
+
+.html-pagebar-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.html-page-tab {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.15s;
+  padding: 0 4px 0 0;
+}
+
+.html-page-tab:hover {
+  background: #1e1e1e;
+}
+
+.html-page-tab.active {
+  background: #2a2a2a;
+}
+
+.html-page-tab-btn {
+  padding: 4px 6px 4px 10px;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.6;
+  transition: color 0.15s;
+}
+
+.html-page-tab:hover .html-page-tab-btn {
+  color: #999;
+}
+
+.html-page-tab.active .html-page-tab-btn {
+  color: #fff;
+}
+
+.html-page-tab-gear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  opacity: 0;
+  transition: color 0.15s, opacity 0.15s, background 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.html-page-tab:hover .html-page-tab-gear,
+.html-page-tab.active .html-page-tab-gear {
+  opacity: 1;
+}
+
+.html-page-tab-gear:hover {
+  color: #ccc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.html-page-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px dashed #2e2e2e;
+  border-radius: 5px;
+  background: transparent;
+  color: #555;
+  font-size: 16px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  margin-left: 4px;
+  line-height: 1;
+  padding: 0;
+}
+
+.html-page-add-btn:hover {
+  color: #ccc;
+  border-color: #555;
+}
+
+/* ── dialog text input ───────────────────────────── */
+.dialog-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 7px;
+  color: #ccc;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.dialog-input:focus {
+  border-color: #6366f1;
+}
+
+.dialog-input-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 0;
+}
+
+.dialog-input-row .dialog-input {
+  border-radius: 7px 0 0 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog-input-suffix {
+  padding: 0 10px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-left: none;
+  border-radius: 0 7px 7px 0;
+  color: #555;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dialog-input-error {
+  font-size: 12px;
+  color: #f87171;
+  margin: 0;
+  align-self: flex-start;
 }

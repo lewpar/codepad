@@ -37,9 +37,9 @@ const TAB_ICONS = {
 }
 
 const DEFAULT_CODE = {
-  html: '',
-  css:  '',
-  js:   '',
+  pages: [{ name: 'index.html', html: '' }],
+  css:   '',
+  js:    '',
 }
 
 const CM_EXTENSIONS = {
@@ -80,25 +80,39 @@ function parseFragment() {
     const hash = window.location.hash.slice(1)
     if (!hash) return null
     const data = JSON.parse(atob(hash))
+    // New multi-page format
+    if (Array.isArray(data.pages)) {
+      return { pages: data.pages, css: data.css ?? '', js: data.js ?? '', title: data.title ?? null }
+    }
+    // Legacy single-page format
     if (typeof data.html === 'string' || typeof data.css === 'string' || typeof data.js === 'string') {
-      return { html: data.html ?? '', css: data.css ?? '', js: data.js ?? '', title: data.title ?? null }
+      return {
+        pages: [{ name: 'index.html', html: data.html ?? '' }],
+        css: data.css ?? '',
+        js: data.js ?? '',
+        title: data.title ?? null,
+      }
     }
   } catch {}
   return null
 }
 
 function buildFragmentUrl(code, title) {
-  return `${window.location.origin}/#${btoa(JSON.stringify({ title, html: code.html, css: code.css, js: code.js }))}`
+  return `${window.location.origin}/#${btoa(JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js }))}`
 }
 
-function buildSrcdoc(code, includeJs = true, nonce = '') {
-  let doc = includeJs ? code.html : stripScripts(code.html)
+function buildSrcdoc(code, pageName, includeJs = true, nonce = '') {
+  const page = code.pages.find(p => p.name === pageName) ?? code.pages[0]
+  let doc = includeJs ? page.html : stripScripts(page.html)
 
-  // Navigation guard: intercept anchor clicks to handle hash scrolling and
-  // open external links in a new tab instead of navigating the iframe.
+  // Navigation guard: intercept anchor clicks.
+  // - Local .html links → postMessage to parent to switch preview page.
+  // - Hash links → smooth-scroll within the iframe.
+  // - All other links → open in a new tab.
   const navGuard =
     '<scr' + 'ipt>' +
     '(function(){' +
+    'var n="' + nonce + '";' +
     'document.addEventListener("click",function(e){' +
     'var a=e.target.closest("a");' +
     'if(!a||!a.hasAttribute("href"))return;' +
@@ -109,6 +123,9 @@ function buildSrcdoc(code, includeJs = true, nonce = '') {
     'var el=document.getElementById(h.slice(1));' +
     'if(el){var top=el.getBoundingClientRect().top+window.pageYOffset;' +
     'window.scrollTo({top:top,behavior:"smooth"});}' +
+    'return;}' +
+    'if(!h.includes("://")&&!h.startsWith("//")&&!h.startsWith("mailto")&&h.endsWith(".html")){' +
+    'try{parent.postMessage({source:"codepad",nonce:n,type:"navigate",page:h},"*")}catch(e_){}' +
     'return;}' +
     'window.open(h,"_blank","noopener,noreferrer");' +
     '});' +
@@ -155,7 +172,7 @@ function getInitialConsent() {
   if (!_initConsent) {
     const cookied = getJsConsentCookie()
     const nonce = cookied ? Math.random().toString(36).slice(2) : ''
-    _initConsent = { allowed: cookied ? true : null, nonce, srcdoc: buildSrcdoc(DEFAULT_CODE, cookied, nonce) }
+    _initConsent = { allowed: cookied ? true : null, nonce, srcdoc: buildSrcdoc(DEFAULT_CODE, 'index.html', cookied, nonce) }
   }
   return _initConsent
 }
@@ -346,10 +363,182 @@ function ConsolePanel({ logs, isOpen, layout, onToggle, onClear }) {
   )
 }
 
+// ── HTML page sub-bar ─────────────────────────────────────────────────────────
+
+function PageSettingsDialog({ name, existingNames, onRename, onRemove, onClose }) {
+  const [value, setValue]           = useState(name.replace(/\.html$/, ''))
+  const [error, setError]           = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const inputRef = useRef(null)
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  function handleApply() {
+    let n = value.trim()
+    if (!n) { setError('Name is required.'); return }
+    if (!n.endsWith('.html')) n += '.html'
+    if (n !== name && existingNames.includes(n)) { setError(`"${n}" already exists.`); return }
+    onRename(n)
+    onClose()
+  }
+
+  function handleDelete() {
+    onRemove()
+    onClose()
+  }
+
+  return (
+    <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="dialog dialog--left" role="dialog" aria-modal="true" aria-labelledby="pagesettings-title">
+        {confirmDelete ? (
+          <>
+            <h2 id="pagesettings-title">Delete Page?</h2>
+            <p style={{ alignSelf: 'flex-start' }}>
+              <strong style={{ color: '#e0e0e0' }}>{name}</strong> will be permanently removed. This cannot be undone.
+            </p>
+            <div className="dialog-actions">
+              <button className="dialog-btn deny" onClick={() => setConfirmDelete(false)}>Cancel</button>
+              <button className="dialog-btn clear" onClick={handleDelete}>Delete</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 id="pagesettings-title">Page Settings</h2>
+            <p style={{ alignSelf: 'flex-start' }}>Rename the page or delete it entirely.</p>
+            <label style={{ alignSelf: 'flex-start', fontSize: 12, color: '#666', marginBottom: -4 }}>File name</label>
+            <div className="dialog-input-row">
+              <input
+                ref={inputRef}
+                className="dialog-input"
+                value={value}
+                onChange={e => { setValue(e.target.value); setError('') }}
+                onKeyDown={e => { if (e.key === 'Enter') handleApply(); if (e.key === 'Escape') onClose() }}
+              />
+              <span className="dialog-input-suffix">.html</span>
+            </div>
+            {error && <p className="dialog-input-error">{error}</p>}
+            <div className="dialog-actions" style={{ flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                <button className="dialog-btn deny" onClick={onClose}>Cancel</button>
+                <button className="dialog-btn allow" onClick={handleApply}>Apply</button>
+              </div>
+              <button className="dialog-btn clear" style={{ width: '100%' }} onClick={() => setConfirmDelete(true)}>Delete Page</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const GearIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+)
+
+function HtmlPageTab({ name, isActive, isIndex, onSelect, onRemove, onRename, existingNames }) {
+  const [showSettings, setShowSettings] = useState(false)
+
+  return (
+    <>
+      {showSettings && (
+        <PageSettingsDialog
+          name={name}
+          existingNames={existingNames}
+          onRename={onRename}
+          onRemove={onRemove}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+      <div className={`html-page-tab${isActive ? ' active' : ''}`}>
+        <button className="html-page-tab-btn" onClick={onSelect} title={name}>
+          {name}
+        </button>
+        {!isIndex && (
+          <button
+            className="html-page-tab-gear"
+            onClick={e => { e.stopPropagation(); setShowSettings(true) }}
+            title="Page settings"
+          >
+            <GearIcon />
+          </button>
+        )}
+      </div>
+    </>
+  )
+}
+
+function HtmlPageBar({ pages, activePage, layout, splitSize, onSelect, onAdd, onRemove, onRename }) {
+  const innerStyle = layout === 'row' ? { width: `${splitSize}%`, flexShrink: 0 } : {}
+  return (
+    <div className="html-pagebar" style={layout === 'row' ? { padding: 0 } : {}}>
+      <div className="html-pagebar-inner" style={innerStyle}>
+        {pages.map(page => (
+          <HtmlPageTab
+            key={page.name}
+            name={page.name}
+            isActive={activePage === page.name}
+            isIndex={page.name === 'index.html'}
+            existingNames={pages.map(p => p.name)}
+            onSelect={() => onSelect(page.name)}
+            onRemove={() => onRemove(page.name)}
+            onRename={newName => onRename(page.name, newName)}
+          />
+        ))}
+        <button className="html-page-add-btn" onClick={onAdd} title="Add HTML page">+</button>
+      </div>
+      {layout === 'row' && <div style={{ flex: 1 }} />}
+    </div>
+  )
+}
+
+function AddPageDialog({ existingNames, onAdd, onClose }) {
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  const inputRef = useRef(null)
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  function handleAdd() {
+    let n = name.trim()
+    if (!n) { setError('Name is required.'); return }
+    if (!n.endsWith('.html')) n += '.html'
+    if (existingNames.includes(n)) { setError(`"${n}" already exists.`); return }
+    onAdd(n)
+    onClose()
+  }
+
+  return (
+    <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="dialog dialog--left" role="dialog" aria-modal="true" aria-labelledby="addpage-title">
+        <h2 id="addpage-title">New HTML Page</h2>
+        <p>Enter a name for the new page.</p>
+        <div className="dialog-input-row">
+          <input
+            ref={inputRef}
+            className="dialog-input"
+            placeholder="e.g. about"
+            value={name}
+            onChange={e => { setName(e.target.value); setError('') }}
+            onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onClose() }}
+          />
+          <span className="dialog-input-suffix">.html</span>
+        </div>
+        {error && <p className="dialog-input-error">{error}</p>}
+        <div className="dialog-actions">
+          <button className="dialog-btn deny" onClick={onClose}>Cancel</button>
+          <button className="dialog-btn allow" onClick={handleAdd}>Add Page</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── main app ──────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [activeTab, setActiveTab]       = useState('html')
+  const [activePage, setActivePage]     = useState('index.html')
   const [code, setCode]                 = useState(DEFAULT_CODE)
   const [title, setTitle]               = useState('Untitled')
   useEffect(() => { document.title = `CodePad - ${title}` }, [title])
@@ -358,6 +547,7 @@ export default function App() {
   const [jsAllowed, setJsAllowed]       = useState(() => getInitialConsent().allowed)
   const [showClear, setShowClear]       = useState(false)
   const [showShare, setShowShare]       = useState(false)
+  const [showAddPage, setShowAddPage]   = useState(false)
   const [shareUrl, setShareUrl]         = useState(null)
   const [shareError, setShareError]     = useState(false)
   const [isSharing, setIsSharing]       = useState(false)
@@ -374,13 +564,30 @@ export default function App() {
   const jsAllowedRef       = useRef(null)   // always holds latest jsAllowed
   const activeNonceRef     = useRef(getInitialConsent().nonce)  // nonce of the currently live iframe
   const lastSharedCodeRef  = useRef(null)   // code snapshot at last successful share
+  const activePageRef      = useRef('index.html')  // always holds latest activePage
+  const codeRef            = useRef(DEFAULT_CODE)  // always holds latest code
 
-  // keep jsAllowed in sync
+  // keep refs in sync
   useEffect(() => { jsAllowedRef.current = jsAllowed }, [jsAllowed])
+  useEffect(() => { activePageRef.current = activePage }, [activePage])
+  useEffect(() => { codeRef.current = code }, [code])
+
   useEffect(() => {
     const handler = (e) => {
       if (e.data?.source !== 'codepad') return
       if (e.data.nonce !== activeNonceRef.current) return
+      // Inter-page navigation from the preview
+      if (e.data.type === 'navigate') {
+        const pageName = e.data.page
+        if (codeRef.current.pages.some(p => p.name === pageName)) {
+          activePageRef.current = pageName
+          setActivePage(pageName)
+          const nonce = Math.random().toString(36).slice(2)
+          activeNonceRef.current = nonce
+          setSrcdoc(buildSrcdoc(codeRef.current, pageName, jsAllowedRef.current === true, nonce))
+        }
+        return
+      }
       setConsoleLogs(prev => [...prev, {
         id: Date.now() + Math.random(),
         method: e.data.method,
@@ -400,17 +607,25 @@ export default function App() {
         const nonce = Math.random().toString(36).slice(2)
         activeNonceRef.current = nonce
         setConsoleLogs([])
-        setSrcdoc(buildSrcdoc(next, includeJs ?? jsAllowedRef.current === true, nonce))
+        setSrcdoc(buildSrcdoc(next, activePageRef.current, includeJs ?? jsAllowedRef.current === true, nonce))
       }, 500)
     }, 300)
   }, [])
 
   const handleChange = useCallback((value) => {
-    setCode(prev => {
-      const next = { ...prev, [activeTab]: value }
-      updatePreview(next, null) // null → reads jsAllowedRef at fire time
-      return next
-    })
+    if (activeTab === 'html') {
+      setCode(prev => {
+        const next = { ...prev, pages: prev.pages.map(p => p.name === activePageRef.current ? { ...p, html: value } : p) }
+        updatePreview(next, null)
+        return next
+      })
+    } else {
+      setCode(prev => {
+        const next = { ...prev, [activeTab]: value }
+        updatePreview(next, null)
+        return next
+      })
+    }
   }, [activeTab, updatePreview])
 
   useEffect(() => () => {
@@ -420,6 +635,9 @@ export default function App() {
 
   // Toggle 'has-scrollbar' on the editor panel so the clear button shifts right.
   // setTimeout(0) defers until after @uiw/react-codemirror's own effects have updated the DOM.
+  const activeEditorValue = activeTab === 'html'
+    ? (code.pages.find(p => p.name === activePage)?.html ?? '')
+    : code[activeTab]
   useEffect(() => {
     const panel = editorPanelRef.current
     if (!panel) return
@@ -429,7 +647,7 @@ export default function App() {
       panel.classList.toggle('has-scrollbar', scroller.scrollHeight > scroller.clientHeight)
     }, 0)
     return () => clearTimeout(id)
-  }, [code[activeTab]])
+  }, [activeEditorValue])
 
   // load code from KV path (takes priority) or fall back to fragment
   useEffect(() => {
@@ -438,10 +656,17 @@ export default function App() {
       fetch(`${KVS_URL}/${pathCode}`)
         .then(r => r.json())
         .then(data => {
-          if (data && typeof data.html === 'string') {
-            setCode(data)
+          if (!data) return
+          let loaded
+          if (Array.isArray(data.pages)) {
+            loaded = { pages: data.pages, css: data.css ?? '', js: data.js ?? '' }
+          } else if (typeof data.html === 'string') {
+            loaded = { pages: [{ name: 'index.html', html: data.html }], css: data.css ?? '', js: data.js ?? '' }
+          }
+          if (loaded) {
+            setCode(loaded)
             if (data.title) setTitle(data.title)
-            updatePreview(data, null)
+            updatePreview(loaded, null)
           }
         })
         .catch(() => {})
@@ -482,8 +707,8 @@ export default function App() {
   }
 
   async function handleGenerateShortLink() {
-    // reuse existing link if code hasn't changed since last share
-    if (shareUrl && lastSharedCodeRef.current === JSON.stringify({ ...code, title })) return
+    const snapshot = JSON.stringify({ pages: code.pages, css: code.css, js: code.js, title })
+    if (shareUrl && lastSharedCodeRef.current === snapshot) return
     setShareUrl(null)
     setShareError(false)
     setIsSharing(true)
@@ -491,11 +716,11 @@ export default function App() {
       const res = await fetch(KVS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, html: code.html, css: code.css, js: code.js }),
+        body: JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js }),
       })
       if (!res.ok) throw new Error('Request failed')
       const data = await res.json()
-      lastSharedCodeRef.current = JSON.stringify({ ...code, title })
+      lastSharedCodeRef.current = snapshot
       setShareUrl(`${window.location.origin}/${data.id}`)
     } catch {
       setShareUrl(null)
@@ -508,9 +733,14 @@ export default function App() {
 
   function handleClearConfirm(clearAll) {
     setCode(prev => {
-      const next = clearAll
-        ? { html: '', css: '', js: '' }
-        : { ...prev, [activeTab]: '' }
+      let next
+      if (clearAll) {
+        next = { pages: prev.pages.map(p => ({ ...p, html: '' })), css: '', js: '' }
+      } else if (activeTab === 'html') {
+        next = { ...prev, pages: prev.pages.map(p => p.name === activePage ? { ...p, html: '' } : p) }
+      } else {
+        next = { ...prev, [activeTab]: '' }
+      }
       updatePreview(next, null)
       return next
     })
@@ -524,8 +754,44 @@ export default function App() {
   }
 
   const editorStyle = layout === 'row' ? { width: `${splitSize}%` } : { height: `${splitSize}%` }
-  const isEmpty = !code.html.trim() && !code.css.trim() && !code.js.trim()
-  const hasJs   = !!code.js.trim() || /<script\b/i.test(code.html)
+  const isEmpty = code.pages.every(p => !p.html.trim()) && !code.css.trim() && !code.js.trim()
+  const hasJs   = !!code.js.trim() || code.pages.some(p => /<script\b/i.test(p.html))
+
+  function switchPage(pageName) {
+    activePageRef.current = pageName
+    setActivePage(pageName)
+    clearTimeout(previewDebounceRef.current)
+    clearTimeout(previewDelayRef.current)
+    const nonce = Math.random().toString(36).slice(2)
+    activeNonceRef.current = nonce
+    setConsoleLogs([])
+    setPreviewLoading(true)
+    setSrcdoc(buildSrcdoc(code, pageName, jsAllowedRef.current === true, nonce))
+  }
+
+  function handleAddPage(name) {
+    setCode(prev => ({ ...prev, pages: [...prev.pages, { name, html: '' }] }))
+    switchPage(name)
+  }
+
+  function handleRemovePage(name) {
+    if (name === 'index.html') return
+    setCode(prev => ({ ...prev, pages: prev.pages.filter(p => p.name !== name) }))
+    if (activePage === name) switchPage('index.html')
+  }
+
+  function handleRenamePage(oldName, newName) {
+    if (oldName === 'index.html' || !newName || newName === oldName) return
+    if (code.pages.some(p => p.name === newName)) return
+    setCode(prev => ({
+      ...prev,
+      pages: prev.pages.map(p => p.name === oldName ? { ...p, name: newName } : p),
+    }))
+    if (activePage === oldName) {
+      activePageRef.current = newName
+      setActivePage(newName)
+    }
+  }
 
   function grantConsent(allowed, remember = false) {
     if (allowed && remember) setJsConsentCookie()
@@ -534,13 +800,14 @@ export default function App() {
     setJsAllowed(allowed)
     setConsoleLogs([])
     setPreviewLoading(true)
-    setSrcdoc(buildSrcdoc(code, allowed, nonce))
+    setSrcdoc(buildSrcdoc(code, activePageRef.current, allowed, nonce))
   }
 
   return (
     <div className={`app${isDragging ? ' is-dragging-' + layout : ''}`}>
       {showClear && <ClearDialog tab={activeTab} onConfirm={handleClearConfirm} onClose={() => setShowClear(false)} />}
       {showShare && <ShareDialog code={code} title={title} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} />}
+      {showAddPage && <AddPageDialog existingNames={code.pages.map(p => p.name)} onAdd={handleAddPage} onClose={() => setShowAddPage(false)} />}
 
       <div className="header">
         <img src="/favicon.png" alt="CodePad" className="header-logo" />
@@ -579,16 +846,53 @@ export default function App() {
       <div className="topbar" style={layout === 'row' ? { padding: 0, gap: 0 } : {}}>
         <div className="topbar-tabs" style={layout === 'row' ? { width: `${splitSize}%`, flexShrink: 0, padding: '0 12px' } : {}}>
           {LANGS.map(({ id, label, color }) => (
-            <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`} style={{ '--tab-color': color }} onClick={() => setActiveTab(id)}>
-              {TAB_ICONS[id]}
-              {label}
-            </button>
+            id === 'html' && code.pages.length === 1 ? (
+              <div
+                key={id}
+                className={`tab-btn${activeTab === id ? ' active' : ''}`}
+                style={{ '--tab-color': color, cursor: 'pointer' }}
+                onClick={() => setActiveTab(id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && setActiveTab(id)}
+              >
+                {TAB_ICONS[id]}
+                {label}
+                <button
+                  className="tab-add-page-btn"
+                  title="Add HTML page"
+                  onClick={e => { e.stopPropagation(); setActiveTab('html'); setShowAddPage(true) }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                    <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button key={id} className={`tab-btn${activeTab === id ? ' active' : ''}`} style={{ '--tab-color': color }} onClick={() => setActiveTab(id)}>
+                {TAB_ICONS[id]}
+                {label}
+              </button>
+            )
           ))}
         </div>
         {layout === 'row' && (
           <div className="topbar-preview-label">Live Preview</div>
         )}
       </div>
+
+      {code.pages.length > 1 && (
+        <HtmlPageBar
+          pages={code.pages}
+          activePage={activePage}
+          layout={layout}
+          splitSize={splitSize}
+          onSelect={switchPage}
+          onAdd={() => setShowAddPage(true)}
+          onRemove={handleRemovePage}
+          onRename={handleRenamePage}
+        />
+      )}
 
       <div className={`workspace ${layout}`} ref={workspaceRef}>
         <div className="editor-panel" style={editorStyle} ref={editorPanelRef}>
@@ -599,8 +903,8 @@ export default function App() {
               </svg>
             </button>
             <CodeMirror
-              key={activeTab}
-              value={code[activeTab]}
+              key={activeTab === 'html' ? `html-${activePage}` : activeTab}
+              value={activeEditorValue}
               height="100%"
               theme={dracula}
               extensions={CM_EXTENSIONS[activeTab]}
