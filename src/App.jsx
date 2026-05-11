@@ -453,6 +453,7 @@ function HtmlPageTab({ name, isActive, isIndex, onSelect, onRemove, onRename, ex
       )}
       <div className={`html-page-tab${isActive ? ' active' : ''}`}>
         <button className="html-page-tab-btn" onClick={onSelect} title={name}>
+          {TAB_ICONS.html}
           {name}
         </button>
         {!isIndex && (

@@ -886,6 +886,9 @@
 }
 
 .html-page-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   padding: 4px 6px 4px 10px;
   border: none;
   background: transparent;
@@ -896,6 +899,14 @@
   white-space: nowrap;
   line-height: 1.6;
   transition: color 0.15s;
+}
+
+.html-page-tab-btn svg {
+  color: #f06535;
+  opacity: 0.8;
+  flex-shrink: 0;
+  width: 11px;
+  height: 11px;
 }
 
 .html-page-tab:hover .html-page-tab-btn {
