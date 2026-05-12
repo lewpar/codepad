@@ -75,11 +75,33 @@ function stripScripts(htmlStr) {
   return htmlStr.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, '')
 }
 
+function base64DecodeUnicode(base64) {
+  try {
+    const binary = atob(base64)
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0))
+    return new TextDecoder().decode(bytes)
+  } catch (e) {
+    return null
+  }
+}
+
+function base64EncodeUnicode(str) {
+  const utf8 = new TextEncoder().encode(str)
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let i = 0; i < utf8.length; i += chunkSize) {
+    binary += String.fromCharCode(...utf8.subarray(i, i + chunkSize))
+  }
+  return btoa(binary)
+}
+
 function parseFragment() {
   try {
     const hash = window.location.hash.slice(1)
     if (!hash) return null
-    const data = JSON.parse(atob(hash))
+    const decoded = base64DecodeUnicode(hash)
+    if (decoded == null) return null
+    const data = JSON.parse(decoded)
     // New multi-page format
     if (Array.isArray(data.pages)) {
       return { pages: data.pages, css: data.css ?? '', js: data.js ?? '', title: data.title ?? null }
@@ -98,7 +120,8 @@ function parseFragment() {
 }
 
 function buildFragmentUrl(code, title) {
-  return `${window.location.origin}/#${btoa(JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js }))}`
+  const payload = JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js })
+  return `${window.location.origin}/#${base64EncodeUnicode(payload)}`
 }
 
 function buildSrcdoc(code, pageName, includeJs = true, nonce = '') {
