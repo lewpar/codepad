@@ -136,22 +136,36 @@ function buildSrcdoc(code, pageName, includeJs = true, nonce = '') {
     '<scr' + 'ipt>' +
     '(function(){' +
     'var n="' + nonce + '";' +
-    'document.addEventListener("click",function(e){' +
+    'function handle(e){' +
     'var a=e.target.closest("a");' +
     'if(!a||!a.hasAttribute("href"))return;' +
-    'e.preventDefault();' +
     'var h=a.getAttribute("href");' +
     'if(!h||h==="#"){return;}' +
     'if(h.startsWith("#")){' +
     'var el=document.getElementById(h.slice(1));' +
-    'if(el){var top=el.getBoundingClientRect().top+window.pageYOffset;' +
-    'window.scrollTo({top:top,behavior:"smooth"});}' +
-    'return;}' +
-    'if(!h.includes("://")&&!h.startsWith("//")&&!h.startsWith("mailto")&&h.endsWith(".html")){' +
-    'try{parent.postMessage({source:"codepad",nonce:n,type:"navigate",page:h},"*")}catch(e_){}' +
-    'return;}' +
+    'if(el){var top=el.getBoundingClientRect().top+window.pageYOffset;window.scrollTo({top:top,behavior:"smooth"});}' +
+    'e.preventDefault();return;}' +
+    'var raw = h.split("#")[0].split("?")[0];' +
+    'var path = raw;' +
+    'while(path.startsWith("./")) path = path.slice(2);' +
+    'if(path.startsWith("/")) path = path.slice(1);' +
+    'var parts = path.split("/");' +
+    'var normParts = [];' +
+    'for(var i=0;i<parts.length;i++){' +
+    '  if(parts[i]===""||parts[i]===".") continue;' +
+    '  if(parts[i]===".."){ if(normParts.length) normParts.pop(); continue; }' +
+    '  normParts.push(parts[i]);' +
+    '}' +
+    'var norm = normParts.join("/");' +
+    'if(!h.includes("://")&&!h.startsWith("//")&&!h.startsWith("mailto")&&!h.startsWith("javascript")){' +
+    '  try{parent.postMessage({source:"codepad",nonce:n,type:"navigate",page:norm,href:h},"*")}catch(e_){}' +
+    '  e.preventDefault();' +
+    '  return;' +
+    '}' +
     'window.open(h,"_blank","noopener,noreferrer");' +
-    '});' +
+    '}' +
+    'document.addEventListener("click",handle,true);' +
+    'document.addEventListener("auxclick",handle,true);' +
     '})();' +
     '<\/scr' + 'ipt>'
 
@@ -602,8 +616,88 @@ export default function App() {
       if (e.data.nonce !== activeNonceRef.current) return
       // Inter-page navigation from the preview
       if (e.data.type === 'navigate') {
-        const pageName = e.data.page
-        if (codeRef.current.pages.some(p => p.name === pageName)) {
+        const incoming = e.data.page
+        const normalize = (name) => {
+          if (!name || typeof name !== 'string') return name
+          const raw = String(name).split('#')[0].split('?')[0]
+          let path = raw
+          while (path.startsWith('./')) path = path.slice(2)
+          if (path.startsWith('/')) path = path.slice(1)
+          const parts = path.split('/')
+          const out = []
+          for (let i = 0; i < parts.length; i++) {
+            const p = parts[i]
+            if (!p || p === '.') continue
+            if (p === '..') { if (out.length) out.pop(); continue }
+            out.push(p)
+          }
+          return out.join('/')
+        }
+        const normIncoming = normalize(incoming)
+        const findMatch = (incomingVal) => {
+          const tryNames = []
+          if (typeof incomingVal === 'string') tryNames.push(incomingVal)
+          else if (incomingVal && typeof incomingVal === 'object') {
+            if (incomingVal.raw) tryNames.push(incomingVal.raw)
+            if (incomingVal.norm) tryNames.push(incomingVal.norm)
+            if (incomingVal.base) tryNames.push(incomingVal.base)
+          }
+          tryNames.push(String(incomingVal))
+
+          const genCandidates = (s) => {
+            const out = new Set()
+            if (!s) return []
+            const n = normalize(s)
+            out.add(n)
+            // try with and without .html and with index
+            if (!n.endsWith('.html')) {
+              out.add(n + '.html')
+              out.add(n.replace(/\/$/, '') + '/index.html')
+            } else {
+              out.add(n.replace(/\.html$/, ''))
+            }
+            // basename variants
+            const base = n.split('/').pop()
+            if (base) {
+              out.add(base)
+              out.add(base + '.html')
+              out.add(base.replace(/\.html$/, ''))
+            }
+            return [...out].filter(Boolean)
+          }
+
+          const incomingCandidates = [...new Set(tryNames.filter(Boolean).flatMap(t => genCandidates(t)))]
+
+          // First pass: exact normalized candidate match against pages' candidates
+          for (let p of codeRef.current.pages) {
+            const pn = normalize(p.name)
+            const pcands = genCandidates(pn)
+            for (const ic of incomingCandidates) {
+              if (pcands.includes(ic) || pn === ic) return p
+            }
+          }
+
+          // Second pass: basename match ignoring .html
+          for (let t of tryNames.filter(Boolean)) {
+            const base = String(t).split('/').pop().replace(/\.html$/, '')
+            const m = codeRef.current.pages.find(p => normalize(p.name).split('/').pop().replace(/\.html$/, '') === base)
+            if (m) return m
+          }
+
+          // Third pass: endsWith fallback
+          for (let t of incomingCandidates) {
+            const m = codeRef.current.pages.find(p => {
+              const pn = normalize(p.name)
+              return pn === t || pn.endsWith('/' + t) || pn.endsWith(t)
+            })
+            if (m) return m
+          }
+
+          return null
+        }
+        const match = findMatch(incoming)
+        if (match) {
+          const pageName = match.name
           activePageRef.current = pageName
           setActivePage(pageName)
           const nonce = Math.random().toString(36).slice(2)
