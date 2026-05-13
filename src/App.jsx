@@ -95,6 +95,38 @@ function base64EncodeUnicode(str) {
   return btoa(binary)
 }
 
+// Normalize a page filename/path to a canonical route key.
+// Examples:
+//  - '/about' -> 'about'
+//  - 'about.html' -> 'about'
+//  - 'services/a/index.html' -> 'services/a'
+//  - '' or 'index.html' -> ''
+function normalizePath(name) {
+  if (!name || typeof name !== 'string') return ''
+  let raw = String(name).split('#')[0].split('?')[0].trim()
+  raw = raw.replace(/\\/g, '/')
+  while (raw.startsWith('./')) raw = raw.slice(2)
+  if (raw.startsWith('/')) raw = raw.slice(1)
+  raw = raw.replace(/\/\/+/g, '/')
+  const parts = raw.split('/')
+  const out = []
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]
+    if (!p || p === '.') continue
+    if (p === '..') { if (out.length) out.pop(); continue }
+    out.push(p)
+  }
+  return out.join('/')
+}
+
+function routeKey(name) {
+  const p = normalizePath(name)
+  if (!p) return ''
+  if (p.endsWith('/index.html')) return p.slice(0, -('/index.html'.length)).replace(/\/$/, '')
+  if (p.endsWith('.html')) return p.slice(0, -('.html'.length))
+  return p.replace(/\/$/, '')
+}
+
 function parseFragment() {
   try {
     const hash = window.location.hash.slice(1)
@@ -413,7 +445,8 @@ function PageSettingsDialog({ name, existingNames, onRename, onRemove, onClose }
     let n = value.trim()
     if (!n) { setError('Name is required.'); return }
     if (!n.endsWith('.html')) n += '.html'
-    if (n !== name && existingNames.includes(n)) { setError(`"${n}" already exists.`); return }
+    // prevent creating a name that collides with another page's route
+    if (n !== name && existingNames.some(ex => ex !== name && routeKey(ex) === routeKey(n))) { setError(`"${n}" conflicts with an existing page.`); return }
     onRename(n)
     onClose()
   }
@@ -541,7 +574,8 @@ function AddPageDialog({ existingNames, onAdd, onClose }) {
     let n = name.trim()
     if (!n) { setError('Name is required.'); return }
     if (!n.endsWith('.html')) n += '.html'
-    if (existingNames.includes(n)) { setError(`"${n}" already exists.`); return }
+    const newKey = routeKey(n)
+    if (existingNames.some(ex => routeKey(ex) === newKey)) { setError(`"${n}" conflicts with an existing page.`); return }
     onAdd(n)
     onClose()
   }
@@ -888,6 +922,8 @@ export default function App() {
   }
 
   function handleAddPage(name) {
+    const newKey = routeKey(name)
+    if (code.pages.some(p => routeKey(p.name) === newKey)) return
     setCode(prev => ({ ...prev, pages: [...prev.pages, { name, html: '' }] }))
     switchPage(name)
   }
@@ -900,7 +936,8 @@ export default function App() {
 
   function handleRenamePage(oldName, newName) {
     if (oldName === 'index.html' || !newName || newName === oldName) return
-    if (code.pages.some(p => p.name === newName)) return
+    const newKey = routeKey(newName)
+    if (code.pages.some(p => p.name !== oldName && routeKey(p.name) === newKey)) return
     setCode(prev => ({
       ...prev,
       pages: prev.pages.map(p => p.name === oldName ? { ...p, name: newName } : p),
