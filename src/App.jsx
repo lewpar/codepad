@@ -543,7 +543,7 @@ function HtmlPageTab({ name, isActive, isIndex, onSelect, onRemove, onRename, ex
 function HtmlPageBar({ pages, activePage, layout, splitSize, onSelect, onAdd, onRemove, onRename }) {
   const innerStyle = layout === 'row' ? { width: `${splitSize}%`, flexShrink: 0 } : {}
   return (
-    <div className="html-pagebar" style={layout === 'row' ? { padding: 0 } : {}}>
+    <div className="html-pagebar">
       <div className="html-pagebar-inner" style={innerStyle}>
         {pages.map(page => (
           <HtmlPageTab

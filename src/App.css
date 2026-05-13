@@ -847,10 +847,10 @@
 .html-pagebar {
   display: flex;
   align-items: stretch;
-  height: 34px;
   background: #0a0a0a;
   border-bottom: 1px solid #1e1e1e;
   flex-shrink: 0;
+  padding: 0.25rem 0rem;
 }
 
 .html-pagebar-inner {
@@ -861,6 +861,7 @@
   overflow-x: auto;
   scrollbar-width: none;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .html-pagebar-inner::-webkit-scrollbar {
