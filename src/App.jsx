@@ -440,6 +440,12 @@ function PageSettingsDialog({ name, existingNames, onRename, onRemove, onClose }
   const [confirmDelete, setConfirmDelete] = useState(false)
   const inputRef = useRef(null)
   useEffect(() => { inputRef.current?.focus() }, [])
+  // Close this dialog when the global close event is dispatched (Escape key pressed)
+  useEffect(() => {
+    const onCloseEvent = () => { try { onClose() } catch (__) {} }
+    window.addEventListener('codepad-close-dialog', onCloseEvent)
+    return () => window.removeEventListener('codepad-close-dialog', onCloseEvent)
+  }, [onClose])
 
   function handleApply() {
     let n = value.trim()
@@ -751,6 +757,28 @@ export default function App() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e) => {
+      try {
+        if ((e.ctrlKey || e.metaKey) && e.key && e.key.toLowerCase() === 's') {
+          e.preventDefault()
+          setShowShare(true)
+          return
+        }
+        if (e.key === 'Escape') {
+          // Close top-level dialogs
+          try { setShowShare(false) } catch (_) {}
+          try { setShowAddPage(false) } catch (_) {}
+          try { setShowClear(false) } catch (_) {}
+          // notify nested dialogs (PageSettingsDialog) to close
+          try { window.dispatchEvent(new Event('codepad-close-dialog')) } catch (__) {}
+        }
+      } catch (err) {}
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   const updatePreview = useCallback((next, includeJs) => {
