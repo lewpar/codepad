@@ -491,6 +491,9 @@ function PageSettingsDialog({ name, existingNames, onRename, onRemove, onClose }
                 <button className="dialog-btn deny" onClick={onClose}>Cancel</button>
                 <button className="dialog-btn allow" onClick={handleApply}>Apply</button>
               </div>
+
+              <hr className="horizontal-rule"></hr>
+
               <button className="dialog-btn clear" style={{ width: '100%' }} onClick={() => setConfirmDelete(true)}>Delete Page</button>
             </div>
           </>

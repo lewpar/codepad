@@ -255,6 +255,11 @@
   transition: background 0.15s;
 }
 
+.horizontal-rule {
+  border: 1px solid rgb(50, 50, 50);
+  margin: 0.5rem 0;
+}
+
 /* wider invisible hit area via pseudo-element */
 .divider--row {
   width: 5px;
