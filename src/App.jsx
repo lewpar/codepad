@@ -615,6 +615,85 @@ function AddPageDialog({ existingNames, onAdd, onClose }) {
   )
 }
 
+function HelpDialog({ onClose, onOpenGuide }) {
+  const topics = [
+    { id: 'tabs', title: 'Editor Tabs', desc: 'HTML / CSS / JS' },
+    { id: 'pages', title: 'Pages', desc: 'Add and manage HTML pages' },
+    { id: 'sharing', title: 'Sharing', desc: 'Generate a short URL to share' },
+  ]
+
+  return (
+    <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <img src="/favicon.png" alt="CodePad" className="dialog-icon-img" />
+        <h2 id="help-title">About CodePad</h2>
+        <p>CodePad is a lightweight in-browser editor with a live preview. Edit HTML, CSS, and JS, add multiple HTML pages, and share snapshots via short links.</p>
+
+        <div style={{ display: 'grid', gap: '8px', marginTop: '12px', width: '100%' }}>
+          {topics.map(t => (
+            <button
+              key={t.id}
+              className="help-topic-btn"
+              onClick={() => onOpenGuide(t.id)}
+            >
+              <strong style={{ lineHeight: 1 }}>{t.title}</strong>
+              <div className="help-topic-desc">{t.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="dialog-actions" style={{ marginTop: '12px' }}>
+          <button className="dialog-btn deny" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GuideDialog({ guide, onBack, onClose }) {
+  let title = ''
+  let content = null
+  if (guide === 'tabs') {
+    title = 'Editor Tabs'
+    content = (
+      <>
+        <p>HTML: edit your page markup. When multiple pages exist, use the page tabs to switch between them.</p>
+        <p>CSS: global styles applied to the preview.</p>
+        <p>JS: JavaScript injected into the preview. You may be asked to allow JS execution for security.</p>
+      </>
+    )
+  } else if (guide === 'pages') {
+    title = 'Pages'
+    content = (
+      <>
+        <p>Use the + button next to the HTML tab to add new pages. Rename or remove pages in the page settings menu.</p>
+        <p>The special file index.html is served at the root path ("/").</p>
+      </>
+    )
+  } else if (guide === 'sharing') {
+    title = 'Sharing'
+    content = (
+      <>
+        <p>Click the Share button to upload a snapshot and get a short URL. The link loads the snapshot in this editor.</p>
+        <p>Shared links are stored on a remote key-value service and can be opened by others.</p>
+      </>
+    )
+  }
+
+  return (
+    <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="dialog dialog--left" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+        <h2 id="guide-title">{title}</h2>
+        {content}
+        <div className="dialog-actions">
+          <button className="dialog-btn deny" onClick={onBack}>Back to help</button>
+          <button className="dialog-btn allow" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── main app ──────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -629,6 +708,9 @@ export default function App() {
   const [showClear, setShowClear]       = useState(false)
   const [showShare, setShowShare]       = useState(false)
   const [showAddPage, setShowAddPage]   = useState(false)
+  // Help dialog state
+  const [showHelp, setShowHelp]         = useState(false)
+  const [helpView, setHelpView]         = useState('main')
   const [shareUrl, setShareUrl]         = useState(null)
   const [shareError, setShareError]     = useState(false)
   const [isSharing, setIsSharing]       = useState(false)
@@ -1002,6 +1084,8 @@ export default function App() {
       {showClear && <ClearDialog tab={activeTab} onConfirm={handleClearConfirm} onClose={() => setShowClear(false)} />}
       {showShare && <ShareDialog code={code} title={title} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} />}
       {showAddPage && <AddPageDialog existingNames={code.pages.map(p => p.name)} onAdd={handleAddPage} onClose={() => setShowAddPage(false)} />}
+      {showHelp && helpView === 'main' && <HelpDialog onClose={() => setShowHelp(false)} onOpenGuide={(g) => setHelpView(g)} />}
+      {showHelp && helpView !== 'main' && <GuideDialog guide={helpView} onBack={() => setHelpView('main')} onClose={() => setShowHelp(false)} />}
 
       <div className="header">
         <img src="/favicon.png" alt="CodePad" className="header-logo" />
@@ -1033,6 +1117,13 @@ export default function App() {
               ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="6" rx="1.5" fill="currentColor" opacity="0.5"/><rect x="1" y="9" width="14" height="6" rx="1.5" fill="currentColor"/></svg>
               : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="14" rx="1.5" fill="currentColor" opacity="0.5"/><rect x="9" y="1" width="6" height="14" rx="1.5" fill="currentColor"/></svg>
             }
+          </button>
+          <button className="layout-btn" onClick={() => { setShowHelp(true); setHelpView('main') }} title="Help">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M7.25 5.5a1.25 1.25 0 112.5 0c0 .9-1 1.25-1.25 2-0.23.55.25 1 1 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              <circle cx="8" cy="11" r="0.6" fill="currentColor" />
+            </svg>
           </button>
         </div>
       </div>
