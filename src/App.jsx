@@ -687,6 +687,14 @@ export default function App() {
           }
           tryNames.push(String(incomingVal))
 
+          // Special-case: empty/root path should match index.html if present.
+          // If all collected tryNames are empty/falsey, treat as root and prefer index.html pages.
+          const nonEmptyTryNames = tryNames.filter(Boolean)
+          if (nonEmptyTryNames.length === 0) {
+            const idx = codeRef.current.pages.find(p => p.name === 'index.html' || p.name.endsWith('/index.html'))
+            if (idx) return idx
+          }
+
           const genCandidates = (s) => {
             const out = new Set()
             if (!s) return []
