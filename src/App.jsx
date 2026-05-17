@@ -371,6 +371,40 @@ function ShareDialog({ code, title, shortUrl, shortError, isGenerating, onGenera
   )
 }
 
+function DownloadDialog({ optBoilerplate, optLinkCss, optLinkJs, setOptBoilerplate, setOptLinkCss, setOptLinkJs, onConfirm, onClose, isExporting }) {
+  return (
+    <div className="dialog-backdrop dialog-backdrop--fixed" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="download-title">
+        <h2 id="download-title">Export Project</h2>
+        <p style={{ alignSelf: 'flex-start' }}>Choose options for the exported files.</p>
+
+        <label className="consent-remember" style={{ alignSelf: 'flex-start' }} title="Wrap with &lt;!doctype html&gt;, &lt;html&gt;, &lt;head&gt;, &lt;body&gt; if missing.">
+          <input type="checkbox" checked={optBoilerplate} onChange={e => setOptBoilerplate(e.target.checked)} aria-label="Add Boilerplate" />
+          <span className="consent-remember__box" />
+          Add Boilerplate
+        </label>
+
+        <label className="consent-remember" style={{ alignSelf: 'flex-start' }} title="Insert &lt;link rel=&quot;stylesheet&quot; href=&quot;styles.css&quot;&gt; into &lt;head&gt; if missing.">
+          <input type="checkbox" checked={optLinkCss} onChange={e => setOptLinkCss(e.target.checked)} aria-label="Link CSS" />
+          <span className="consent-remember__box" />
+          Link CSS
+        </label>
+
+        <label className="consent-remember" style={{ alignSelf: 'flex-start' }} title="Insert &lt;script src=&quot;script.js&quot;&gt;&lt;/script&gt; before &lt;/body&gt; if missing.">
+          <input type="checkbox" checked={optLinkJs} onChange={e => setOptLinkJs(e.target.checked)} aria-label="Link JS" />
+          <span className="consent-remember__box" />
+          Link JS
+        </label>
+
+        <div className="dialog-actions">
+          <button className="dialog-btn deny" onClick={onClose}>Cancel</button>
+          <button className="dialog-btn allow" onClick={onConfirm} disabled={isExporting}>{isExporting ? 'Exporting…' : 'Download ZIP'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const LOG_COLORS = { log: '#ccc', info: '#60a5fa', warn: '#f59e0b', error: '#f87171' }
 const LOG_LABELS = { log: 'LOG', info: 'INF', warn: 'WRN', error: 'ERR' }
 
@@ -1055,19 +1089,78 @@ export default function App() {
     }
   }
 
-  async function handleDownload() {
-    // Prepare files: each HTML page plus top-level CSS and JS
-    const files = []
-    for (const p of code.pages) {
-      const name = p.name || 'index.html'
-      files.push({ name, content: p.html ?? '', type: 'text/html' })
-    }
-    files.push({ name: 'styles.css', content: code.css ?? '', type: 'text/css' })
-    files.push({ name: 'script.js', content: code.js ?? '', type: 'application/javascript' })
+  // Download dialog state
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false)
+  const [optBoilerplate, setOptBoilerplate] = useState(true)
+  const [optLinkCss, setOptLinkCss] = useState(true)
+  const [optLinkJs, setOptLinkJs] = useState(true)
 
+  async function handleDownload() {
+    // Open the dialog instead of exporting immediately
+    setShowDownloadDialog(true)
+  }
+
+  function hasHtmlBoilerplate(htmlStr) {
+    if (!htmlStr) return false
+    const s = htmlStr.toLowerCase()
+    return /<\s*html\b/.test(s) && /<\s*head\b/.test(s) && /<\s*body\b/.test(s)
+  }
+
+  function hasLinkCss(htmlStr, cssFileName) {
+    if (!htmlStr) return false
+    const s = htmlStr.toLowerCase()
+    // check for <link ... href="styles.css" or other name
+    return new RegExp(`<link[^>]+href=["']?${cssFileName.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')}["']?`, 'i').test(s)
+  }
+
+  function hasScriptRef(htmlStr, jsFileName) {
+    if (!htmlStr) return false
+    const s = htmlStr.toLowerCase()
+    return new RegExp(`<script[^>]+src=["']?${jsFileName.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')}["']?`, 'i').test(s)
+  }
+
+  async function performDownloadExport() {
+    // Prepare files: each HTML page plus top-level CSS and JS (after applying options)
+    const files = []
+    const cssName = 'styles.css'
+    const jsName = 'script.js'
+
+    for (const p of code.pages) {
+      let htmlContent = p.html ?? ''
+
+      // Add HTML boilerplate if requested and missing
+      if (optBoilerplate && !hasHtmlBoilerplate(htmlContent)) {
+        htmlContent = `<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>${(title||'Untitled').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</title>\n` + (optLinkCss ? `  <link rel=\"stylesheet\" href=\"${cssName}\">\n` : '') + `</head>\n<body>\n` + htmlContent + `\n` + (optLinkJs ? `\n<script src=\"${jsName}\"></script>` : '') + `\n</body>\n</html>`
+      } else {
+        // If not adding boilerplate, maybe ensure links/scripts are present or not
+        if (optLinkCss && !hasLinkCss(htmlContent, cssName)) {
+          // inject before </head> if present, otherwise prepend
+          if (/<\s*\/\s*head\s*>/i.test(htmlContent)) {
+            htmlContent = htmlContent.replace(/<\s*\/\s*head\s*>/i, `  <link rel=\"stylesheet\" href=\"${cssName}\">\n</head>`)
+          } else {
+            htmlContent = `<link rel=\"stylesheet\" href=\"${cssName}\">\n` + htmlContent
+          }
+        }
+        if (optLinkJs && !hasScriptRef(htmlContent, jsName)) {
+          // inject before </body> if present, otherwise append
+          if (/<\s*\/\s*body\s*>/i.test(htmlContent)) {
+            htmlContent = htmlContent.replace(/<\s*\/\s*body\s*>/i, `<script src=\"${jsName}\"></script>\n</body>`)
+          } else {
+            htmlContent = htmlContent + `\n<script src=\"${jsName}\"></script>`
+          }
+        }
+      }
+
+      files.push({ name: p.name || 'index.html', content: htmlContent, type: 'text/html' })
+    }
+
+    // Add CSS/JS files
+    files.push({ name: cssName, content: code.css ?? '', type: 'text/css' })
+    files.push({ name: jsName, content: code.js ?? '', type: 'application/javascript' })
+
+    // Now generate ZIP via JSZip
     setIsExporting(true)
     try {
-      // Create a ZIP file using JSZip and trigger a single download
       try {
         const jszipMod = await import('jszip')
         const JSZip = jszipMod.default || jszipMod
@@ -1075,7 +1168,6 @@ export default function App() {
         const baseName = (title || 'codepad-export').replace(/[^a-z0-9._-]/gi, '-').slice(0, 200)
         const root = zip.folder(baseName) || zip
         for (const f of files) {
-          // JSZip supports paths in file names so nested folders are preserved
           root.file(f.name, f.content)
         }
         const blob = await zip.generateAsync({ type: 'blob' })
@@ -1087,13 +1179,13 @@ export default function App() {
         a.click()
         a.remove()
         setTimeout(() => URL.revokeObjectURL(url), 1000)
+        setShowDownloadDialog(false)
         return
       } catch (err) {
-        // If JSZip import/generation fails, fall back to per-file downloads
-        console.warn('ZIP export failed, falling back to single-file downloads', err)
+        console.warn('ZIP export failed', err)
       }
 
-      // Fallback: trigger individual downloads (will go to the browser's Downloads folder)
+      // Fallback: download files individually
       for (const f of files) {
         const blob = new Blob([f.content], { type: f.type + ';charset=utf-8' })
         const url = URL.createObjectURL(blob)
@@ -1105,6 +1197,7 @@ export default function App() {
         a.remove()
         setTimeout(() => URL.revokeObjectURL(url), 1000)
       }
+      setShowDownloadDialog(false)
     } finally {
       setIsExporting(false)
     }
@@ -1190,6 +1283,7 @@ export default function App() {
   return (
     <div className={`app${isDragging ? ' is-dragging-' + layout : ''}`}>
       {showClear && <ClearDialog tab={activeTab} onConfirm={handleClearConfirm} onClose={() => setShowClear(false)} />}
+      {showDownloadDialog && <DownloadDialog optBoilerplate={optBoilerplate} optLinkCss={optLinkCss} optLinkJs={optLinkJs} setOptBoilerplate={setOptBoilerplate} setOptLinkCss={setOptLinkCss} setOptLinkJs={setOptLinkJs} onConfirm={performDownloadExport} onClose={() => setShowDownloadDialog(false)} isExporting={isExporting} /> }
       {showShare && <ShareDialog code={code} title={title} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} />}
       {showAddPage && <AddPageDialog existingNames={code.pages.map(p => p.name)} onAdd={handleAddPage} onClose={() => setShowAddPage(false)} />}
       {showHelp && helpView === 'main' && <HelpDialog onClose={() => setShowHelp(false)} onOpenGuide={(g) => setHelpView(g)} />}
