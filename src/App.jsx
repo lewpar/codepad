@@ -7,6 +7,7 @@ import { dracula } from '@uiw/codemirror-theme-dracula'
 import './App.css'
 
 const KVS_URL = 'https://kvs.cyberbilby.com'
+const STORAGE_KEY = 'codepad:autosave:v1'
 
 const LANGS = [
   { id: 'html', label: 'HTML', color: '#f06535' },
@@ -719,6 +720,7 @@ export default function App() {
   const [isDragging, setIsDragging]     = useState(false)
   const [consoleLogs, setConsoleLogs]   = useState([])
   const [consoleOpen, setConsoleOpen]   = useState(false)
+  const [isSourceShared, setIsSourceShared] = useState(null)
 
   const previewDebounceRef = useRef(null)
   const previewDelayRef    = useRef(null)
@@ -922,10 +924,11 @@ export default function App() {
     return () => clearTimeout(id)
   }, [activeEditorValue])
 
-  // load code from KV path (takes priority) or fall back to fragment
+  // load code from KV path (takes priority) or fall back to fragment, otherwise load autosave from localStorage
   useEffect(() => {
     const pathCode = window.location.pathname.slice(1)
     if (pathCode) {
+      setIsSourceShared(true)
       fetch(`${KVS_URL}/${pathCode}`)
         .then(r => r.json())
         .then(data => {
@@ -947,12 +950,59 @@ export default function App() {
     }
     const fragData = parseFragment()
     if (fragData) {
+      setIsSourceShared(true)
       const { title: fragTitle, ...fragCode } = fragData
       setCode(fragCode)
       if (fragTitle) setTitle(fragTitle)
       updatePreview(fragCode, null)
+      return
     }
+
+    // No share URL or fragment — prefer loading user's last autosaved state from localStorage
+    setIsSourceShared(false)
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed && parsed.code) {
+          setCode(parsed.code)
+          if (parsed.title) setTitle(parsed.title)
+          // restore UI settings if present
+          const s = parsed.settings || {}
+          if (s.layout) setLayout(s.layout)
+          if (typeof s.splitSize === 'number') setSplitSize(s.splitSize)
+          if (s.activeTab) setActiveTab(s.activeTab)
+          if (s.activePage) { activePageRef.current = s.activePage; setActivePage(s.activePage) }
+          if (typeof s.jsAllowed === 'boolean') setJsAllowed(s.jsAllowed)
+          if (typeof s.consoleOpen === 'boolean') setConsoleOpen(s.consoleOpen)
+          updatePreview(parsed.code, null)
+        }
+      }
+    } catch (e) {}
   }, [updatePreview])
+
+  useEffect(() => {
+    // Persist user code + UI settings to localStorage when the page wasn't loaded from a share URL/fragment.
+    if (typeof window === 'undefined') return
+    if (isSourceShared !== false) return
+    try {
+      const payload = {
+        code: code,
+        title: title,
+        settings: {
+          layout,
+          splitSize,
+          activeTab,
+          activePage,
+          jsAllowed,
+          consoleOpen,
+        }
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    } catch (e) {
+      // ignore storage errors
+    }
+  }, [code, title, layout, splitSize, activeTab, activePage, jsAllowed, consoleOpen, isSourceShared])
 
   const handleDividerMouseDown = useCallback((e) => {
     e.preventDefault()
@@ -1017,6 +1067,8 @@ export default function App() {
       updatePreview(next, null)
       return next
     })
+    // If the user cleared all tabs, remove the autosaved state from storage so they truly start fresh.
+    try { if (clearAll) localStorage.removeItem(STORAGE_KEY) } catch (e) {}
     setShowClear(false)
   }
 
