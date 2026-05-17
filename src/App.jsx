@@ -721,6 +721,7 @@ export default function App() {
   const [consoleLogs, setConsoleLogs]   = useState([])
   const [consoleOpen, setConsoleOpen]   = useState(false)
   const [isSourceShared, setIsSourceShared] = useState(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const previewDebounceRef = useRef(null)
   const previewDelayRef    = useRef(null)
@@ -1054,6 +1055,61 @@ export default function App() {
     }
   }
 
+  async function handleDownload() {
+    // Prepare files: each HTML page plus top-level CSS and JS
+    const files = []
+    for (const p of code.pages) {
+      const name = p.name || 'index.html'
+      files.push({ name, content: p.html ?? '', type: 'text/html' })
+    }
+    files.push({ name: 'styles.css', content: code.css ?? '', type: 'text/css' })
+    files.push({ name: 'script.js', content: code.js ?? '', type: 'application/javascript' })
+
+    setIsExporting(true)
+    try {
+      // Create a ZIP file using JSZip and trigger a single download
+      try {
+        const jszipMod = await import('jszip')
+        const JSZip = jszipMod.default || jszipMod
+        const zip = new JSZip()
+        const baseName = (title || 'codepad-export').replace(/[^a-z0-9._-]/gi, '-').slice(0, 200)
+        const root = zip.folder(baseName) || zip
+        for (const f of files) {
+          // JSZip supports paths in file names so nested folders are preserved
+          root.file(f.name, f.content)
+        }
+        const blob = await zip.generateAsync({ type: 'blob' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${baseName}.zip`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        return
+      } catch (err) {
+        // If JSZip import/generation fails, fall back to per-file downloads
+        console.warn('ZIP export failed, falling back to single-file downloads', err)
+      }
+
+      // Fallback: trigger individual downloads (will go to the browser's Downloads folder)
+      for (const f of files) {
+        const blob = new Blob([f.content], { type: f.type + ';charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = f.name
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      }
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   function handleClearConfirm(clearAll) {
     setCode(prev => {
       let next
@@ -1154,6 +1210,14 @@ export default function App() {
           </div>
         </div>
         <div className="header-actions">
+          <button className="layout-btn" onClick={handleDownload} disabled={isExporting} title="Download">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 1v8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 7l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="2" y="13" width="12" height="2" rx="0.5" fill="currentColor"/>
+            </svg>
+          </button>
+
           <button className="layout-btn" onClick={handleShare} disabled={isSharing} title="Share">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <circle cx="13" cy="3"  r="1.75" stroke="currentColor" strokeWidth="1.4"/>
@@ -1171,10 +1235,11 @@ export default function App() {
             }
           </button>
           <button className="layout-btn" onClick={() => { setShowHelp(true); setHelpView('main') }} title="Help">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M7.25 5.5a1.25 1.25 0 112.5 0c0 .9-1 1.25-1.25 2-0.23.55.25 1 1 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              <circle cx="8" cy="11" r="0.6" fill="currentColor" />
+            {/* <!-- License: MIT. Made by iconoir: https://iconoir.com/ --> */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M9 9C9 5.49997 14.5 5.5 14.5 9C14.5 11.5 12 10.9999 12 13.9999" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M12 18.01L12.01 17.9989" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
