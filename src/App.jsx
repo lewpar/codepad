@@ -137,7 +137,14 @@ function parseFragment() {
     const data = JSON.parse(decoded)
     // New multi-page format
     if (Array.isArray(data.pages)) {
-      return { pages: data.pages, css: data.css ?? '', js: data.js ?? '', title: data.title ?? null }
+      return {
+        pages: data.pages,
+        css: data.css ?? '',
+        js: data.js ?? '',
+        title: data.title ?? null,
+        activeTab: data.activeTab ?? undefined,
+        activePage: data.activePage ?? undefined,
+      }
     }
     // Legacy single-page format
     if (typeof data.html === 'string' || typeof data.css === 'string' || typeof data.js === 'string') {
@@ -146,14 +153,16 @@ function parseFragment() {
         css: data.css ?? '',
         js: data.js ?? '',
         title: data.title ?? null,
+        activeTab: data.activeTab ?? undefined,
+        activePage: data.activePage ?? undefined,
       }
     }
   } catch {}
   return null
 }
 
-function buildFragmentUrl(code, title) {
-  const payload = JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js })
+function buildFragmentUrl(code, title, activeTab, activePage) {
+  const payload = JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js, activeTab, activePage })
   return `${window.location.origin}/#${base64EncodeUnicode(payload)}`
 }
 
@@ -320,10 +329,10 @@ const CheckIcon = () => (
   <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M2 8l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
 )
 
-function ShareDialog({ code, title, shortUrl, shortError, isGenerating, onGenerateShortLink, onClose }) {
+function ShareDialog({ code, title, shortUrl, shortError, isGenerating, onGenerateShortLink, onClose, activeTab, activePage }) {
   const [copiedFragment, setCopiedFragment] = useState(false)
   const [copiedShort, setCopiedShort]       = useState(false)
-  const fragmentUrl = buildFragmentUrl(code, title)
+  const fragmentUrl = buildFragmentUrl(code, title, activeTab, activePage)
 
   function copyText(text, setCopied) {
     navigator.clipboard.writeText(text).then(() => {
@@ -977,6 +986,8 @@ export default function App() {
           if (loaded) {
             setCode(loaded)
             if (data.title) setTitle(data.title)
+            if (data.activeTab) setActiveTab(data.activeTab)
+            if (data.activePage) { activePageRef.current = data.activePage; setActivePage(data.activePage) }
             updatePreview(loaded, null)
           }
         })
@@ -986,9 +997,11 @@ export default function App() {
     const fragData = parseFragment()
     if (fragData) {
       setIsSourceShared(true)
-      const { title: fragTitle, ...fragCode } = fragData
+      const { title: fragTitle, activeTab: fragActiveTab, activePage: fragActivePage, ...fragCode } = fragData
       setCode(fragCode)
       if (fragTitle) setTitle(fragTitle)
+      if (fragActiveTab) setActiveTab(fragActiveTab)
+      if (fragActivePage) { activePageRef.current = fragActivePage; setActivePage(fragActivePage) }
       updatePreview(fragCode, null)
       return
     }
@@ -1065,7 +1078,7 @@ export default function App() {
   }
 
   async function handleGenerateShortLink() {
-    const snapshot = JSON.stringify({ pages: code.pages, css: code.css, js: code.js, title })
+    const snapshot = JSON.stringify({ pages: code.pages, css: code.css, js: code.js, title, activeTab, activePage })
     if (shareUrl && lastSharedCodeRef.current === snapshot) return
     setShareUrl(null)
     setShareError(false)
@@ -1074,7 +1087,7 @@ export default function App() {
       const res = await fetch(KVS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js }),
+        body: JSON.stringify({ title, pages: code.pages, css: code.css, js: code.js, activeTab, activePage }),
       })
       if (!res.ok) throw new Error('Request failed')
       const data = await res.json()
@@ -1284,7 +1297,7 @@ export default function App() {
     <div className={`app${isDragging ? ' is-dragging-' + layout : ''}`}>
       {showClear && <ClearDialog tab={activeTab} onConfirm={handleClearConfirm} onClose={() => setShowClear(false)} />}
       {showDownloadDialog && <DownloadDialog optBoilerplate={optBoilerplate} optLinkCss={optLinkCss} optLinkJs={optLinkJs} setOptBoilerplate={setOptBoilerplate} setOptLinkCss={setOptLinkCss} setOptLinkJs={setOptLinkJs} onConfirm={performDownloadExport} onClose={() => setShowDownloadDialog(false)} isExporting={isExporting} /> }
-      {showShare && <ShareDialog code={code} title={title} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} />}
+      {showShare && <ShareDialog code={code} title={title} shortUrl={shareUrl} shortError={shareError} isGenerating={isSharing} onGenerateShortLink={handleGenerateShortLink} onClose={closeShare} activeTab={activeTab} activePage={activePage} /> }
       {showAddPage && <AddPageDialog existingNames={code.pages.map(p => p.name)} onAdd={handleAddPage} onClose={() => setShowAddPage(false)} />}
       {showHelp && helpView === 'main' && <HelpDialog onClose={() => setShowHelp(false)} onOpenGuide={(g) => setHelpView(g)} />}
       {showHelp && helpView !== 'main' && <GuideDialog guide={helpView} onBack={() => setHelpView('main')} onClose={() => setShowHelp(false)} />}
